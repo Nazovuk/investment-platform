@@ -1,0 +1,27 @@
+# Render.com deployment configuration
+# https://render.com/docs/yaml-spec
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: nazovhybrid-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nazovhybrid-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://nazovhybrid.vercel.app
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # PostgreSQL Database
+  - type: pserver
+    name: nazovhybrid-db
+    runtime: postgres
+    plan: free
+    ipAllowList: []

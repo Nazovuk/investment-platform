@@ -8,7 +8,7 @@ import os
 import secrets
 import hashlib
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from jose import JWTError, jwt
 
 # JWT Configuration
@@ -33,14 +33,14 @@ class TokenData(BaseModel):
 
 class UserCreate(BaseModel):
     """User registration model."""
-    email: EmailStr
+    email: str
     password: str
     name: str
 
 
 class UserLogin(BaseModel):
     """User login model."""
-    email: EmailStr
+    email: str
     password: str
 
 

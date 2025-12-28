@@ -4,7 +4,7 @@ Email Alerts API router.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from dataclasses import asdict
 
 from services.alerts import alerts_service, AlertType, AlertStatus, PriceAlert
@@ -20,7 +20,7 @@ class CreateAlertRequest(BaseModel):
     symbol: str
     alert_type: str  # price_above, price_below, fair_value_reached, score_threshold
     target_value: float
-    email: EmailStr
+    email: str
     message: Optional[str] = None
 
 

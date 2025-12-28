@@ -15,20 +15,39 @@ logger = logging.getLogger(__name__)
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
-# Stock universe
+# Stock universe - 110+ stocks (S&P 100 + Growth Stocks)
 DEFAULT_UNIVERSE = [
+    # Mega Cap Tech
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "BRK.B",
-    "JNJ", "UNH", "PFE", "LLY", "ABBV", "MRK", "TMO",
-    "HD", "PG", "KO", "PEP", "WMT", "COST", "MCD", "NKE", "SBUX",
-    "XOM", "CVX", "COP",
-    "CAT", "BA", "GE", "HON", "RTX", "LMT", "UPS",
-    "DIS", "NFLX", "CMCSA", "T", "VZ",
-    "CRM", "ORCL", "ADBE", "AMD", "INTC"
+    # Finance - Banking & Payments
+    "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "BRK.B", "C", "AXP", "SCHW", "BLK", "PYPL", "SQ",
+    # Healthcare - Pharma & Biotech
+    "JNJ", "UNH", "PFE", "LLY", "ABBV", "MRK", "TMO", "ABT", "BMY", "AMGN", "GILD", "ISRG", "VRTX", "REGN", "MRNA", "BIIB",
+    # Consumer - Retail & Staples
+    "HD", "PG", "KO", "PEP", "WMT", "COST", "MCD", "NKE", "SBUX", "TGT", "LOW", "TJX", "LULU", "YUM", "CMG", "DG", "DLTR",
+    # Energy
+    "XOM", "CVX", "COP", "SLB", "EOG", "PXD", "MPC", "VLO", "OXY",
+    # Industrial & Aerospace
+    "CAT", "BA", "GE", "HON", "RTX", "LMT", "UPS", "FDX", "DE", "MMM", "EMR", "NOC", "GD",
+    # Communication & Entertainment
+    "DIS", "NFLX", "CMCSA", "T", "VZ", "TMUS", "CHTR", "WBD", "PARA", "EA", "ATVI", "TTWO",
+    # Software & Cloud
+    "CRM", "ORCL", "ADBE", "NOW", "SNOW", "PLTR", "MDB", "DDOG", "ZS", "CRWD", "NET", "OKTA", "SPLK", "WDAY", "TEAM", "HUBS",
+    # Semiconductors
+    "AMD", "INTC", "AVGO", "QCOM", "TXN", "MU", "LRCX", "AMAT", "KLAC", "MRVL", "ON", "ADI",
+    # Fintech & Crypto
+    "COIN", "HOOD", "AFRM", "SOFI", "UPST",
+    # AI & Growth
+    "NBIS", "PATH", "AI", "BBAI", "SOUN", "IONQ",
+    # EVs & Clean Energy
+    "RIVN", "LCID", "NIO", "LI", "XPEV", "ENPH", "SEDG", "FSLR",
+    # Real Estate
+    "AMT", "PLD", "CCI", "EQIX", "SPG", "O",
 ]
 
-# Static metadata (company info doesn't change often)
+# Static metadata (company info)
 STOCK_METADATA = {
+    # Mega Cap Tech
     "AAPL": {"name": "Apple Inc.", "sector": "Technology", "industry": "Consumer Electronics"},
     "MSFT": {"name": "Microsoft Corporation", "sector": "Technology", "industry": "Software"},
     "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology", "industry": "Internet Services"},
@@ -36,6 +55,7 @@ STOCK_METADATA = {
     "META": {"name": "Meta Platforms Inc.", "sector": "Technology", "industry": "Social Media"},
     "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology", "industry": "Semiconductors"},
     "TSLA": {"name": "Tesla Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    # Finance
     "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial Services", "industry": "Banking"},
     "V": {"name": "Visa Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
     "MA": {"name": "Mastercard Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
@@ -44,6 +64,13 @@ STOCK_METADATA = {
     "GS": {"name": "Goldman Sachs Group", "sector": "Financial Services", "industry": "Investment Banking"},
     "MS": {"name": "Morgan Stanley", "sector": "Financial Services", "industry": "Investment Banking"},
     "BRK.B": {"name": "Berkshire Hathaway B", "sector": "Financial Services", "industry": "Insurance"},
+    "C": {"name": "Citigroup Inc.", "sector": "Financial Services", "industry": "Banking"},
+    "AXP": {"name": "American Express Co.", "sector": "Financial Services", "industry": "Credit Services"},
+    "SCHW": {"name": "Charles Schwab Corp", "sector": "Financial Services", "industry": "Brokerage"},
+    "BLK": {"name": "BlackRock Inc.", "sector": "Financial Services", "industry": "Asset Management"},
+    "PYPL": {"name": "PayPal Holdings Inc.", "sector": "Financial Services", "industry": "Digital Payments"},
+    "SQ": {"name": "Block Inc.", "sector": "Financial Services", "industry": "Fintech"},
+    # Healthcare
     "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare", "industry": "Pharmaceuticals"},
     "UNH": {"name": "UnitedHealth Group", "sector": "Healthcare", "industry": "Health Insurance"},
     "PFE": {"name": "Pfizer Inc.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
@@ -51,6 +78,16 @@ STOCK_METADATA = {
     "ABBV": {"name": "AbbVie Inc.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
     "MRK": {"name": "Merck & Co.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
     "TMO": {"name": "Thermo Fisher Scientific", "sector": "Healthcare", "industry": "Diagnostics"},
+    "ABT": {"name": "Abbott Laboratories", "sector": "Healthcare", "industry": "Medical Devices"},
+    "BMY": {"name": "Bristol-Myers Squibb", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "AMGN": {"name": "Amgen Inc.", "sector": "Healthcare", "industry": "Biotechnology"},
+    "GILD": {"name": "Gilead Sciences Inc.", "sector": "Healthcare", "industry": "Biotechnology"},
+    "ISRG": {"name": "Intuitive Surgical Inc.", "sector": "Healthcare", "industry": "Medical Devices"},
+    "VRTX": {"name": "Vertex Pharmaceuticals", "sector": "Healthcare", "industry": "Biotechnology"},
+    "REGN": {"name": "Regeneron Pharmaceuticals", "sector": "Healthcare", "industry": "Biotechnology"},
+    "MRNA": {"name": "Moderna Inc.", "sector": "Healthcare", "industry": "Biotechnology"},
+    "BIIB": {"name": "Biogen Inc.", "sector": "Healthcare", "industry": "Biotechnology"},
+    # Consumer
     "HD": {"name": "The Home Depot Inc.", "sector": "Consumer Cyclical", "industry": "Home Improvement"},
     "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive", "industry": "Household Products"},
     "KO": {"name": "The Coca-Cola Company", "sector": "Consumer Defensive", "industry": "Beverages"},
@@ -60,9 +97,25 @@ STOCK_METADATA = {
     "MCD": {"name": "McDonald's Corporation", "sector": "Consumer Cyclical", "industry": "Restaurants"},
     "NKE": {"name": "Nike Inc.", "sector": "Consumer Cyclical", "industry": "Apparel"},
     "SBUX": {"name": "Starbucks Corporation", "sector": "Consumer Cyclical", "industry": "Restaurants"},
+    "TGT": {"name": "Target Corporation", "sector": "Consumer Defensive", "industry": "Retail"},
+    "LOW": {"name": "Lowe's Companies Inc.", "sector": "Consumer Cyclical", "industry": "Home Improvement"},
+    "TJX": {"name": "TJX Companies Inc.", "sector": "Consumer Cyclical", "industry": "Retail"},
+    "LULU": {"name": "Lululemon Athletica", "sector": "Consumer Cyclical", "industry": "Apparel"},
+    "YUM": {"name": "Yum! Brands Inc.", "sector": "Consumer Cyclical", "industry": "Restaurants"},
+    "CMG": {"name": "Chipotle Mexican Grill", "sector": "Consumer Cyclical", "industry": "Restaurants"},
+    "DG": {"name": "Dollar General Corp", "sector": "Consumer Defensive", "industry": "Discount Stores"},
+    "DLTR": {"name": "Dollar Tree Inc.", "sector": "Consumer Defensive", "industry": "Discount Stores"},
+    # Energy
     "XOM": {"name": "Exxon Mobil Corporation", "sector": "Energy", "industry": "Oil & Gas"},
     "CVX": {"name": "Chevron Corporation", "sector": "Energy", "industry": "Oil & Gas"},
     "COP": {"name": "ConocoPhillips", "sector": "Energy", "industry": "Oil & Gas"},
+    "SLB": {"name": "Schlumberger Limited", "sector": "Energy", "industry": "Oil Services"},
+    "EOG": {"name": "EOG Resources Inc.", "sector": "Energy", "industry": "Oil & Gas"},
+    "PXD": {"name": "Pioneer Natural Resources", "sector": "Energy", "industry": "Oil & Gas"},
+    "MPC": {"name": "Marathon Petroleum Corp", "sector": "Energy", "industry": "Refining"},
+    "VLO": {"name": "Valero Energy Corp", "sector": "Energy", "industry": "Refining"},
+    "OXY": {"name": "Occidental Petroleum", "sector": "Energy", "industry": "Oil & Gas"},
+    # Industrial
     "CAT": {"name": "Caterpillar Inc.", "sector": "Industrials", "industry": "Machinery"},
     "BA": {"name": "Boeing Company", "sector": "Industrials", "industry": "Aerospace"},
     "GE": {"name": "GE Aerospace", "sector": "Industrials", "industry": "Aerospace"},
@@ -70,16 +123,84 @@ STOCK_METADATA = {
     "RTX": {"name": "RTX Corporation", "sector": "Industrials", "industry": "Aerospace & Defense"},
     "LMT": {"name": "Lockheed Martin Corp", "sector": "Industrials", "industry": "Aerospace & Defense"},
     "UPS": {"name": "United Parcel Service", "sector": "Industrials", "industry": "Logistics"},
+    "FDX": {"name": "FedEx Corporation", "sector": "Industrials", "industry": "Logistics"},
+    "DE": {"name": "Deere & Company", "sector": "Industrials", "industry": "Farm Machinery"},
+    "MMM": {"name": "3M Company", "sector": "Industrials", "industry": "Conglomerates"},
+    "EMR": {"name": "Emerson Electric Co.", "sector": "Industrials", "industry": "Industrial Automation"},
+    "NOC": {"name": "Northrop Grumman Corp", "sector": "Industrials", "industry": "Aerospace & Defense"},
+    "GD": {"name": "General Dynamics Corp", "sector": "Industrials", "industry": "Aerospace & Defense"},
+    # Communication
     "DIS": {"name": "The Walt Disney Company", "sector": "Communication Services", "industry": "Entertainment"},
     "NFLX": {"name": "Netflix Inc.", "sector": "Communication Services", "industry": "Streaming"},
     "CMCSA": {"name": "Comcast Corporation", "sector": "Communication Services", "industry": "Telecom"},
     "T": {"name": "AT&T Inc.", "sector": "Communication Services", "industry": "Telecom"},
     "VZ": {"name": "Verizon Communications", "sector": "Communication Services", "industry": "Telecom"},
+    "TMUS": {"name": "T-Mobile US Inc.", "sector": "Communication Services", "industry": "Telecom"},
+    "CHTR": {"name": "Charter Communications", "sector": "Communication Services", "industry": "Cable"},
+    "WBD": {"name": "Warner Bros. Discovery", "sector": "Communication Services", "industry": "Entertainment"},
+    "PARA": {"name": "Paramount Global", "sector": "Communication Services", "industry": "Entertainment"},
+    "EA": {"name": "Electronic Arts Inc.", "sector": "Communication Services", "industry": "Gaming"},
+    "ATVI": {"name": "Activision Blizzard", "sector": "Communication Services", "industry": "Gaming"},
+    "TTWO": {"name": "Take-Two Interactive", "sector": "Communication Services", "industry": "Gaming"},
+    # Software & Cloud
     "CRM": {"name": "Salesforce Inc.", "sector": "Technology", "industry": "Software"},
     "ORCL": {"name": "Oracle Corporation", "sector": "Technology", "industry": "Software"},
     "ADBE": {"name": "Adobe Inc.", "sector": "Technology", "industry": "Software"},
+    "NOW": {"name": "ServiceNow Inc.", "sector": "Technology", "industry": "Software"},
+    "SNOW": {"name": "Snowflake Inc.", "sector": "Technology", "industry": "Cloud Computing"},
+    "PLTR": {"name": "Palantir Technologies", "sector": "Technology", "industry": "Data Analytics"},
+    "MDB": {"name": "MongoDB Inc.", "sector": "Technology", "industry": "Database"},
+    "DDOG": {"name": "Datadog Inc.", "sector": "Technology", "industry": "Cloud Monitoring"},
+    "ZS": {"name": "Zscaler Inc.", "sector": "Technology", "industry": "Cybersecurity"},
+    "CRWD": {"name": "CrowdStrike Holdings", "sector": "Technology", "industry": "Cybersecurity"},
+    "NET": {"name": "Cloudflare Inc.", "sector": "Technology", "industry": "Cloud Infrastructure"},
+    "OKTA": {"name": "Okta Inc.", "sector": "Technology", "industry": "Identity Management"},
+    "SPLK": {"name": "Splunk Inc.", "sector": "Technology", "industry": "Data Analytics"},
+    "WDAY": {"name": "Workday Inc.", "sector": "Technology", "industry": "HR Software"},
+    "TEAM": {"name": "Atlassian Corporation", "sector": "Technology", "industry": "Software"},
+    "HUBS": {"name": "HubSpot Inc.", "sector": "Technology", "industry": "Marketing Software"},
+    # Semiconductors
     "AMD": {"name": "Advanced Micro Devices", "sector": "Technology", "industry": "Semiconductors"},
     "INTC": {"name": "Intel Corporation", "sector": "Technology", "industry": "Semiconductors"},
+    "AVGO": {"name": "Broadcom Inc.", "sector": "Technology", "industry": "Semiconductors"},
+    "QCOM": {"name": "Qualcomm Inc.", "sector": "Technology", "industry": "Semiconductors"},
+    "TXN": {"name": "Texas Instruments Inc.", "sector": "Technology", "industry": "Semiconductors"},
+    "MU": {"name": "Micron Technology Inc.", "sector": "Technology", "industry": "Memory"},
+    "LRCX": {"name": "Lam Research Corp", "sector": "Technology", "industry": "Semiconductor Equipment"},
+    "AMAT": {"name": "Applied Materials Inc.", "sector": "Technology", "industry": "Semiconductor Equipment"},
+    "KLAC": {"name": "KLA Corporation", "sector": "Technology", "industry": "Semiconductor Equipment"},
+    "MRVL": {"name": "Marvell Technology", "sector": "Technology", "industry": "Semiconductors"},
+    "ON": {"name": "ON Semiconductor Corp", "sector": "Technology", "industry": "Semiconductors"},
+    "ADI": {"name": "Analog Devices Inc.", "sector": "Technology", "industry": "Semiconductors"},
+    # Fintech & Crypto
+    "COIN": {"name": "Coinbase Global Inc.", "sector": "Financial Services", "industry": "Cryptocurrency"},
+    "HOOD": {"name": "Robinhood Markets Inc.", "sector": "Financial Services", "industry": "Brokerage"},
+    "AFRM": {"name": "Affirm Holdings Inc.", "sector": "Financial Services", "industry": "Buy Now Pay Later"},
+    "SOFI": {"name": "SoFi Technologies Inc.", "sector": "Financial Services", "industry": "Digital Banking"},
+    "UPST": {"name": "Upstart Holdings Inc.", "sector": "Financial Services", "industry": "AI Lending"},
+    # AI & Growth
+    "NBIS": {"name": "Nebius Group N.V.", "sector": "Technology", "industry": "AI Infrastructure"},
+    "PATH": {"name": "UiPath Inc.", "sector": "Technology", "industry": "Automation"},
+    "AI": {"name": "C3.ai Inc.", "sector": "Technology", "industry": "Enterprise AI"},
+    "BBAI": {"name": "BigBear.ai Holdings", "sector": "Technology", "industry": "AI Analytics"},
+    "SOUN": {"name": "SoundHound AI Inc.", "sector": "Technology", "industry": "Voice AI"},
+    "IONQ": {"name": "IonQ Inc.", "sector": "Technology", "industry": "Quantum Computing"},
+    # EVs & Clean Energy
+    "RIVN": {"name": "Rivian Automotive Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "LCID": {"name": "Lucid Group Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "NIO": {"name": "NIO Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "LI": {"name": "Li Auto Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "XPEV": {"name": "XPeng Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "ENPH": {"name": "Enphase Energy Inc.", "sector": "Technology", "industry": "Solar"},
+    "SEDG": {"name": "SolarEdge Technologies", "sector": "Technology", "industry": "Solar"},
+    "FSLR": {"name": "First Solar Inc.", "sector": "Technology", "industry": "Solar"},
+    # Real Estate
+    "AMT": {"name": "American Tower Corp", "sector": "Real Estate", "industry": "REITs"},
+    "PLD": {"name": "Prologis Inc.", "sector": "Real Estate", "industry": "Industrial REITs"},
+    "CCI": {"name": "Crown Castle Inc.", "sector": "Real Estate", "industry": "Tower REITs"},
+    "EQIX": {"name": "Equinix Inc.", "sector": "Real Estate", "industry": "Data Center REITs"},
+    "SPG": {"name": "Simon Property Group", "sector": "Real Estate", "industry": "Retail REITs"},
+    "O": {"name": "Realty Income Corp", "sector": "Real Estate", "industry": "Retail REITs"},
 }
 
 

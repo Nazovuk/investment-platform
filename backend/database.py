@@ -11,6 +11,10 @@ DATABASE_URL = os.getenv(
     "sqlite:///./nazovhybrid.db"  # SQLite for local dev
 )
 
+# Render.com uses postgres:// but SQLAlchemy needs postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # Handle SQLite connection args
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)

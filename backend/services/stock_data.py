@@ -1,379 +1,275 @@
 """
-Stock data service - yfinance wrapper with aggressive caching and async fetching.
-Optimized for Render free tier - data is pre-fetched at startup.
+Stock data service using Finnhub API for live data.
+Falls back to static data if API fails.
 """
 
-import yfinance as yf
-import pandas as pd
-from typing import Optional, Dict, List, Any
-from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import httpx
+import os
+from typing import Dict, List, Any, Optional
+from datetime import datetime
 import logging
-import threading
-import time
 
 logger = logging.getLogger(__name__)
 
+# Finnhub API configuration
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
+FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
+
+# Stock universe
+DEFAULT_UNIVERSE = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+    "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "BRK.B",
+    "JNJ", "UNH", "PFE", "LLY", "ABBV", "MRK", "TMO",
+    "HD", "PG", "KO", "PEP", "WMT", "COST", "MCD", "NKE", "SBUX",
+    "XOM", "CVX", "COP",
+    "CAT", "BA", "GE", "HON", "RTX", "LMT", "UPS",
+    "DIS", "NFLX", "CMCSA", "T", "VZ",
+    "CRM", "ORCL", "ADBE", "AMD", "INTC"
+]
+
+# Static metadata (company info doesn't change often)
+STOCK_METADATA = {
+    "AAPL": {"name": "Apple Inc.", "sector": "Technology", "industry": "Consumer Electronics"},
+    "MSFT": {"name": "Microsoft Corporation", "sector": "Technology", "industry": "Software"},
+    "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology", "industry": "Internet Services"},
+    "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "industry": "E-Commerce"},
+    "META": {"name": "Meta Platforms Inc.", "sector": "Technology", "industry": "Social Media"},
+    "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology", "industry": "Semiconductors"},
+    "TSLA": {"name": "Tesla Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
+    "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial Services", "industry": "Banking"},
+    "V": {"name": "Visa Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
+    "MA": {"name": "Mastercard Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
+    "BAC": {"name": "Bank of America Corp", "sector": "Financial Services", "industry": "Banking"},
+    "WFC": {"name": "Wells Fargo & Co.", "sector": "Financial Services", "industry": "Banking"},
+    "GS": {"name": "Goldman Sachs Group", "sector": "Financial Services", "industry": "Investment Banking"},
+    "MS": {"name": "Morgan Stanley", "sector": "Financial Services", "industry": "Investment Banking"},
+    "BRK.B": {"name": "Berkshire Hathaway B", "sector": "Financial Services", "industry": "Insurance"},
+    "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "UNH": {"name": "UnitedHealth Group", "sector": "Healthcare", "industry": "Health Insurance"},
+    "PFE": {"name": "Pfizer Inc.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "LLY": {"name": "Eli Lilly and Company", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "ABBV": {"name": "AbbVie Inc.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "MRK": {"name": "Merck & Co.", "sector": "Healthcare", "industry": "Pharmaceuticals"},
+    "TMO": {"name": "Thermo Fisher Scientific", "sector": "Healthcare", "industry": "Diagnostics"},
+    "HD": {"name": "The Home Depot Inc.", "sector": "Consumer Cyclical", "industry": "Home Improvement"},
+    "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive", "industry": "Household Products"},
+    "KO": {"name": "The Coca-Cola Company", "sector": "Consumer Defensive", "industry": "Beverages"},
+    "PEP": {"name": "PepsiCo Inc.", "sector": "Consumer Defensive", "industry": "Beverages"},
+    "WMT": {"name": "Walmart Inc.", "sector": "Consumer Defensive", "industry": "Retail"},
+    "COST": {"name": "Costco Wholesale Corp", "sector": "Consumer Defensive", "industry": "Retail"},
+    "MCD": {"name": "McDonald's Corporation", "sector": "Consumer Cyclical", "industry": "Restaurants"},
+    "NKE": {"name": "Nike Inc.", "sector": "Consumer Cyclical", "industry": "Apparel"},
+    "SBUX": {"name": "Starbucks Corporation", "sector": "Consumer Cyclical", "industry": "Restaurants"},
+    "XOM": {"name": "Exxon Mobil Corporation", "sector": "Energy", "industry": "Oil & Gas"},
+    "CVX": {"name": "Chevron Corporation", "sector": "Energy", "industry": "Oil & Gas"},
+    "COP": {"name": "ConocoPhillips", "sector": "Energy", "industry": "Oil & Gas"},
+    "CAT": {"name": "Caterpillar Inc.", "sector": "Industrials", "industry": "Machinery"},
+    "BA": {"name": "Boeing Company", "sector": "Industrials", "industry": "Aerospace"},
+    "GE": {"name": "GE Aerospace", "sector": "Industrials", "industry": "Aerospace"},
+    "HON": {"name": "Honeywell International", "sector": "Industrials", "industry": "Conglomerates"},
+    "RTX": {"name": "RTX Corporation", "sector": "Industrials", "industry": "Aerospace & Defense"},
+    "LMT": {"name": "Lockheed Martin Corp", "sector": "Industrials", "industry": "Aerospace & Defense"},
+    "UPS": {"name": "United Parcel Service", "sector": "Industrials", "industry": "Logistics"},
+    "DIS": {"name": "The Walt Disney Company", "sector": "Communication Services", "industry": "Entertainment"},
+    "NFLX": {"name": "Netflix Inc.", "sector": "Communication Services", "industry": "Streaming"},
+    "CMCSA": {"name": "Comcast Corporation", "sector": "Communication Services", "industry": "Telecom"},
+    "T": {"name": "AT&T Inc.", "sector": "Communication Services", "industry": "Telecom"},
+    "VZ": {"name": "Verizon Communications", "sector": "Communication Services", "industry": "Telecom"},
+    "CRM": {"name": "Salesforce Inc.", "sector": "Technology", "industry": "Software"},
+    "ORCL": {"name": "Oracle Corporation", "sector": "Technology", "industry": "Software"},
+    "ADBE": {"name": "Adobe Inc.", "sector": "Technology", "industry": "Software"},
+    "AMD": {"name": "Advanced Micro Devices", "sector": "Technology", "industry": "Semiconductors"},
+    "INTC": {"name": "Intel Corporation", "sector": "Technology", "industry": "Semiconductors"},
+}
+
 
 class StockDataService:
-    """Service for fetching stock data from yfinance with aggressive caching."""
-    
-    # Cache timeout in seconds (1 hour for production stability)
-    CACHE_TIMEOUT = 3600
-    
-    # Default stock universe - reduced for faster loading
-    DEFAULT_UNIVERSE = [
-        # Top 20 most traded stocks
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-        "JPM", "V", "JNJ", "UNH", "HD", "PG", "MA",
-        "XOM", "BAC", "KO", "PFE", "WMT", "DIS"
-    ]
+    """Service for fetching live stock data from Finnhub."""
     
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._cache_time: Dict[str, datetime] = {}
-        self._is_loading = False
-        self._load_lock = threading.Lock()
-        
-        # Pre-load data in background
-        self._preload_data()
-    
-    def _preload_data(self):
-        """Pre-load all stock data in background thread."""
-        def load():
-            with self._load_lock:
-                if self._is_loading:
-                    return
-                self._is_loading = True
-            
-            logger.info("🚀 Pre-loading stock data...")
-            try:
-                self._fetch_all_stocks_concurrent()
-                logger.info(f"✅ Pre-loaded {len(self._cache)} stocks")
-            except Exception as e:
-                logger.error(f"Error pre-loading: {e}")
-                # Use fallback data if yfinance fails
-                self._load_fallback_data()
-            finally:
-                self._is_loading = False
-        
-        # Start background thread
-        thread = threading.Thread(target=load, daemon=True)
-        thread.start()
-    
-    def _fetch_all_stocks_concurrent(self):
-        """Fetch all stocks concurrently using ThreadPoolExecutor."""
-        symbols = self.DEFAULT_UNIVERSE
-        
-        # Use yfinance batch download for efficiency
-        try:
-            tickers = yf.Tickers(" ".join(symbols))
-            
-            for symbol in symbols:
-                try:
-                    ticker = tickers.tickers[symbol]
-                    info = ticker.info
-                    
-                    if info and len(info) > 5:  # Valid data
-                        data = self._process_ticker_info(symbol, info)
-                        self._cache[symbol] = data
-                        self._cache_time[symbol] = datetime.now()
-                except Exception as e:
-                    logger.warning(f"Failed to fetch {symbol}: {e}")
-                    # Use fallback for this symbol
-                    fallback = self._get_fallback_data(symbol)
-                    if fallback:
-                        self._cache[symbol] = fallback
-                        self._cache_time[symbol] = datetime.now()
-        except Exception as e:
-            logger.error(f"Batch fetch failed: {e}")
-            self._load_fallback_data()
-    
-    def _process_ticker_info(self, symbol: str, info: Dict) -> Dict[str, Any]:
-        """Process raw yfinance info into our format."""
-        current_price = info.get("currentPrice", info.get("regularMarketPrice", 0))
-        
-        data = {
-            "symbol": symbol,
-            "name": info.get("shortName", info.get("longName", symbol)),
-            "sector": info.get("sector", "N/A"),
-            "industry": info.get("industry", "N/A"),
-            "currency": info.get("currency", "USD"),
-            "current_price": current_price,
-            "previous_close": info.get("previousClose", 0),
-            "market_cap": info.get("marketCap", 0),
-            "volume": info.get("volume", 0),
-            "avg_volume": info.get("averageVolume", 0),
-            "pe_ratio": info.get("trailingPE"),
-            "forward_pe": info.get("forwardPE"),
-            "peg_ratio": info.get("pegRatio"),
-            "price_to_book": info.get("priceToBook"),
-            "price_to_sales": info.get("priceToSalesTrailing12Months"),
-            "revenue_growth": info.get("revenueGrowth"),
-            "earnings_growth": info.get("earningsGrowth"),
-            "revenue_per_share": info.get("revenuePerShare"),
-            "profit_margin": info.get("profitMargins"),
-            "operating_margin": info.get("operatingMargins"),
-            "return_on_equity": info.get("returnOnEquity"),
-            "return_on_assets": info.get("returnOnAssets"),
-            "dividend_yield": info.get("dividendYield"),
-            "dividend_rate": info.get("dividendRate"),
-            "payout_ratio": info.get("payoutRatio"),
-            "debt_to_equity": info.get("debtToEquity"),
-            "current_ratio": info.get("currentRatio"),
-            "quick_ratio": info.get("quickRatio"),
-            "target_price": info.get("targetMeanPrice"),
-            "target_high": info.get("targetHighPrice"),
-            "target_low": info.get("targetLowPrice"),
-            "recommendation": info.get("recommendationKey"),
-            "analyst_count": info.get("numberOfAnalystOpinions"),
-            "beta": info.get("beta"),
-            "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-            "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
-        }
-        
-        # Calculate fair value
-        data["fair_value"] = self._calculate_fair_value(info)
-        
-        # Calculate upside
-        if data["fair_value"] and current_price:
-            data["upside_potential"] = ((data["fair_value"] - current_price) / current_price) * 100
-        else:
-            data["upside_potential"] = None
-        
-        # Calculate score
-        data["score"] = self._calculate_score(data)
-        
-        return data
-    
-    def _load_fallback_data(self):
-        """Load all fallback demo data."""
-        logger.info("Loading fallback demo data...")
-        for symbol in self.DEFAULT_UNIVERSE:
-            fallback = self._get_fallback_data(symbol)
-            if fallback:
-                self._cache[symbol] = fallback
-                self._cache_time[symbol] = datetime.now()
-        logger.info(f"Loaded {len(self._cache)} stocks from fallback")
+        self._cache_timeout = 60  # 1 minute cache
     
     def _is_cache_valid(self, symbol: str) -> bool:
-        """Check if cached data is still valid."""
         if symbol not in self._cache_time:
             return False
         elapsed = (datetime.now() - self._cache_time[symbol]).total_seconds()
-        return elapsed < self.CACHE_TIMEOUT
+        return elapsed < self._cache_timeout
     
     def get_stock_info(self, symbol: str) -> Dict[str, Any]:
-        """Get stock information - from cache if available."""
-        # Return cached data if valid
-        if symbol in self._cache and self._is_cache_valid(symbol):
+        """Get live stock data from Finnhub."""
+        if self._is_cache_valid(symbol):
             return self._cache[symbol]
         
-        # Try to fetch fresh data
         try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            if info and len(info) > 5:
-                data = self._process_ticker_info(symbol, info)
-                self._cache[symbol] = data
-                self._cache_time[symbol] = datetime.now()
-                return data
+            # Get quote from Finnhub
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(
+                    f"{FINNHUB_BASE_URL}/quote",
+                    params={"symbol": symbol, "token": FINNHUB_API_KEY}
+                )
+                
+                if response.status_code == 200:
+                    quote = response.json()
+                    
+                    # c = current price, pc = previous close, h = high, l = low
+                    current_price = quote.get("c", 0)
+                    prev_close = quote.get("pc", 0)
+                    
+                    if current_price > 0:
+                        # Get metadata
+                        meta = STOCK_METADATA.get(symbol, {
+                            "name": symbol,
+                            "sector": "Unknown",
+                            "industry": "Unknown"
+                        })
+                        
+                        # Calculate change
+                        change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                        
+                        # Estimate metrics (simplified)
+                        data = {
+                            "symbol": symbol,
+                            "name": meta["name"],
+                            "sector": meta["sector"],
+                            "industry": meta["industry"],
+                            "currency": "USD",
+                            "current_price": round(current_price, 2),
+                            "previous_close": round(prev_close, 2),
+                            "change_percent": round(change_pct, 2),
+                            "high": round(quote.get("h", current_price), 2),
+                            "low": round(quote.get("l", current_price), 2),
+                            "market_cap": self._estimate_market_cap(symbol, current_price),
+                            "pe_ratio": self._estimate_pe(symbol),
+                            "peg_ratio": self._estimate_peg(symbol),
+                            "revenue_growth": self._estimate_growth(symbol),
+                            "fair_value": round(current_price * 1.12, 2),  # Simplified
+                            "upside_potential": 12.0,  # Simplified
+                            "score": self._calculate_score(symbol, current_price, prev_close),
+                            "dividend_yield": self._estimate_dividend(symbol),
+                            "last_updated": datetime.now().isoformat(),
+                        }
+                        
+                        self._cache[symbol] = data
+                        self._cache_time[symbol] = datetime.now()
+                        return data
         except Exception as e:
-            logger.warning(f"Error fetching {symbol}: {e}")
+            logger.error(f"Error fetching {symbol} from Finnhub: {e}")
         
-        # Return cached data even if stale
+        # Return cached data if available
         if symbol in self._cache:
             return self._cache[symbol]
         
-        # Return fallback
-        return self._get_fallback_data(symbol)
+        # Return minimal data
+        return self._get_fallback(symbol)
     
-    def _get_fallback_data(self, symbol: str) -> Dict[str, Any]:
-        """Return demo data when yfinance fails."""
-        demo_stocks = {
-            "AAPL": {"name": "Apple Inc.", "sector": "Technology", "price": 193.60, "pe": 29.5, "peg": 2.1, "growth": 0.08, "fair_value": 210, "score": 72},
-            "MSFT": {"name": "Microsoft Corporation", "sector": "Technology", "price": 376.17, "pe": 34.2, "peg": 2.3, "growth": 0.12, "fair_value": 420, "score": 75},
-            "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology", "price": 140.25, "pe": 24.1, "peg": 1.4, "growth": 0.15, "fair_value": 165, "score": 82},
-            "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "price": 178.25, "pe": 58.3, "peg": 1.8, "growth": 0.22, "fair_value": 200, "score": 68},
-            "META": {"name": "Meta Platforms Inc.", "sector": "Technology", "price": 354.20, "pe": 27.8, "peg": 1.1, "growth": 0.18, "fair_value": 410, "score": 85},
-            "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology", "price": 495.22, "pe": 62.4, "peg": 1.5, "growth": 1.22, "fair_value": 615, "score": 88},
-            "TSLA": {"name": "Tesla Inc.", "sector": "Consumer Cyclical", "price": 248.48, "pe": 72.1, "peg": 3.2, "growth": 0.21, "fair_value": 280, "score": 58},
-            "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial Services", "price": 171.25, "pe": 10.2, "peg": 1.8, "growth": 0.05, "fair_value": 185, "score": 76},
-            "V": {"name": "Visa Inc.", "sector": "Financial Services", "price": 260.50, "pe": 28.5, "peg": 1.9, "growth": 0.11, "fair_value": 295, "score": 74},
-            "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare", "price": 155.40, "pe": 14.8, "peg": 2.8, "growth": 0.03, "fair_value": 168, "score": 70},
-            "UNH": {"name": "UnitedHealth Group", "sector": "Healthcare", "price": 528.75, "pe": 21.3, "peg": 1.5, "growth": 0.12, "fair_value": 580, "score": 79},
-            "HD": {"name": "The Home Depot Inc.", "sector": "Consumer Cyclical", "price": 348.90, "pe": 22.5, "peg": 2.0, "growth": 0.08, "fair_value": 380, "score": 73},
-            "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive", "price": 158.30, "pe": 26.4, "peg": 3.2, "growth": 0.04, "fair_value": 170, "score": 66},
-            "MA": {"name": "Mastercard Inc.", "sector": "Financial Services", "price": 425.80, "pe": 35.2, "peg": 1.8, "growth": 0.14, "fair_value": 480, "score": 77},
-            "XOM": {"name": "Exxon Mobil Corporation", "sector": "Energy", "price": 105.40, "pe": 12.1, "peg": 1.4, "growth": -0.05, "fair_value": 115, "score": 71},
-            "BAC": {"name": "Bank of America Corp", "sector": "Financial Services", "price": 33.85, "pe": 10.8, "peg": 1.6, "growth": 0.06, "fair_value": 38, "score": 69},
-            "KO": {"name": "The Coca-Cola Company", "sector": "Consumer Defensive", "price": 59.25, "pe": 22.6, "peg": 3.5, "growth": 0.04, "fair_value": 65, "score": 62},
-            "PFE": {"name": "Pfizer Inc.", "sector": "Healthcare", "price": 28.45, "pe": 45.2, "peg": 2.8, "growth": -0.15, "fair_value": 32, "score": 55},
-            "WMT": {"name": "Walmart Inc.", "sector": "Consumer Defensive", "price": 163.80, "pe": 28.4, "peg": 3.1, "growth": 0.06, "fair_value": 175, "score": 65},
-            "DIS": {"name": "The Walt Disney Company", "sector": "Communication Services", "price": 91.50, "pe": 68.2, "peg": 2.4, "growth": 0.08, "fair_value": 105, "score": 60},
+    def _estimate_market_cap(self, symbol: str, price: float) -> int:
+        """Estimate market cap based on known shares outstanding."""
+        shares = {
+            "AAPL": 15500000000, "MSFT": 7430000000, "GOOGL": 12200000000,
+            "AMZN": 10500000000, "META": 2570000000, "NVDA": 24500000000,
+            "TSLA": 3190000000, "JPM": 2870000000, "V": 1650000000,
+        }
+        if symbol in shares:
+            return int(price * shares[symbol])
+        return int(price * 1000000000)  # Default 1B shares
+    
+    def _estimate_pe(self, symbol: str) -> float:
+        """Return estimated P/E ratio."""
+        pe_estimates = {
+            "AAPL": 32.5, "MSFT": 36.8, "GOOGL": 25.2, "AMZN": 52.4,
+            "META": 28.5, "NVDA": 55.2, "TSLA": 115.0, "JPM": 13.5,
+            "V": 32.0, "MA": 39.5, "BAC": 15.2, "JNJ": 15.8,
+            "UNH": 20.5, "HD": 27.2, "WMT": 38.5, "XOM": 14.2,
+            "CVX": 13.5, "PFE": 38.0, "KO": 23.5, "PEP": 22.8,
+            "NFLX": 50.2, "DIS": 42.5, "CRM": 50.0, "AMD": 108.0,
+        }
+        return pe_estimates.get(symbol, 25.0)
+    
+    def _estimate_peg(self, symbol: str) -> float:
+        """Return estimated PEG ratio."""
+        peg_estimates = {
+            "AAPL": 2.2, "MSFT": 2.4, "GOOGL": 1.5, "AMZN": 1.9,
+            "META": 1.2, "NVDA": 1.3, "TSLA": 4.5, "JPM": 1.9,
+            "V": 2.0, "MA": 1.9, "BAC": 1.7, "XOM": 1.5,
+        }
+        return peg_estimates.get(symbol, 2.0)
+    
+    def _estimate_growth(self, symbol: str) -> float:
+        """Return estimated revenue growth."""
+        growth_estimates = {
+            "AAPL": 0.08, "MSFT": 0.15, "GOOGL": 0.12, "AMZN": 0.18,
+            "META": 0.22, "NVDA": 1.20, "TSLA": 0.08, "JPM": 0.06,
+        }
+        return growth_estimates.get(symbol, 0.08)
+    
+    def _estimate_dividend(self, symbol: str) -> float:
+        """Return estimated dividend yield."""
+        div_estimates = {
+            "AAPL": 0.005, "MSFT": 0.007, "JPM": 0.022, "BAC": 0.024,
+            "JNJ": 0.032, "KO": 0.031, "PEP": 0.028, "XOM": 0.035,
+            "CVX": 0.042, "VZ": 0.065, "T": 0.055,
+        }
+        return div_estimates.get(symbol, 0.01)
+    
+    def _calculate_score(self, symbol: str, price: float, prev_close: float) -> int:
+        """Calculate investment score."""
+        base_scores = {
+            "NVDA": 88, "META": 85, "GOOGL": 82, "AMD": 80, "UNH": 79,
+            "BRK.B": 78, "MA": 77, "JPM": 76, "MSFT": 76, "MRK": 75,
+            "NFLX": 75, "V": 74, "ORCL": 74, "GS": 74, "CAT": 74,
+            "ADBE": 73, "GE": 73, "MS": 73, "WFC": 72, "AAPL": 72,
+            "CRM": 72, "TMO": 72, "HD": 71, "XOM": 71, "CMCSA": 71,
+            "LMT": 71, "JNJ": 70, "HON": 70, "COP": 70, "BAC": 69,
         }
         
-        if symbol in demo_stocks:
-            d = demo_stocks[symbol]
-            upside = ((d["fair_value"] - d["price"]) / d["price"]) * 100
-            return {
-                "symbol": symbol,
-                "name": d["name"],
-                "sector": d["sector"],
-                "industry": d["sector"],
-                "currency": "USD",
-                "current_price": d["price"],
-                "previous_close": d["price"] * 0.99,
-                "market_cap": 500000000000,
-                "volume": 50000000,
-                "avg_volume": 45000000,
-                "pe_ratio": d["pe"],
-                "forward_pe": d["pe"] * 0.9,
-                "peg_ratio": d["peg"],
-                "price_to_book": 8.5,
-                "price_to_sales": 6.2,
-                "revenue_growth": d["growth"],
-                "earnings_growth": d["growth"] * 0.8,
-                "revenue_per_share": d["price"] / d["pe"] * 5,
-                "profit_margin": 0.22,
-                "operating_margin": 0.28,
-                "return_on_equity": 0.35,
-                "return_on_assets": 0.12,
-                "dividend_yield": 0.015,
-                "dividend_rate": d["price"] * 0.015,
-                "payout_ratio": 0.25,
-                "debt_to_equity": 0.85,
-                "current_ratio": 1.5,
-                "quick_ratio": 1.2,
-                "target_price": d["fair_value"],
-                "target_high": d["fair_value"] * 1.15,
-                "target_low": d["fair_value"] * 0.85,
-                "recommendation": "buy" if upside > 10 else "hold",
-                "analyst_count": 28,
-                "beta": 1.15,
-                "fifty_two_week_high": d["price"] * 1.25,
-                "fifty_two_week_low": d["price"] * 0.75,
-                "fair_value": d["fair_value"],
-                "upside_potential": upside,
-                "score": d["score"],
-            }
+        score = base_scores.get(symbol, 65)
         
-        return {
-            "symbol": symbol,
-            "name": symbol,
-            "sector": "Unknown",
-            "industry": "Unknown",
-            "currency": "USD",
-            "current_price": 100,
-            "previous_close": 99,
-            "market_cap": 10000000000,
-            "pe_ratio": 20,
-            "peg_ratio": 1.5,
-            "revenue_growth": 0.10,
-            "fair_value": 115,
-            "upside_potential": 15,
-            "score": 65,
-        }
-    
-    def _calculate_fair_value(self, info: Dict) -> Optional[float]:
-        """Calculate fair value using analyst target and Graham number."""
-        try:
-            target = info.get("targetMeanPrice")
-            
-            eps = info.get("trailingEps", 0)
-            book_value = info.get("bookValue", 0)
-            graham = None
-            if eps and book_value and eps > 0 and book_value > 0:
-                graham = (22.5 * eps * book_value) ** 0.5
-            
-            values = []
-            weights = []
-            
-            if target and target > 0:
-                values.append(target)
-                weights.append(0.6)
-            if graham and graham > 0:
-                values.append(graham)
-                weights.append(0.4)
-            
-            if values:
-                total_weight = sum(weights[:len(values)])
-                return sum(v * w for v, w in zip(values, weights)) / total_weight
-            
-            return None
-        except Exception:
-            return None
-    
-    def _calculate_score(self, data: Dict) -> int:
-        """Calculate investment score (0-100)."""
-        score = 50
-        
-        if data.get("pe_ratio"):
-            pe = data["pe_ratio"]
-            if pe < 15:
-                score += 10
-            elif pe < 20:
-                score += 5
-            elif pe > 35:
-                score -= 10
-        
-        if data.get("peg_ratio"):
-            peg = data["peg_ratio"]
-            if peg < 1:
-                score += 10
-            elif peg < 1.5:
-                score += 5
-            elif peg > 2.5:
-                score -= 5
-        
-        if data.get("revenue_growth"):
-            growth = data["revenue_growth"] * 100
-            if growth > 20:
-                score += 10
-            elif growth > 10:
-                score += 5
-            elif growth < 0:
-                score -= 5
-        
-        if data.get("upside_potential"):
-            upside = data["upside_potential"]
-            if upside > 30:
-                score += 15
-            elif upside > 15:
-                score += 10
-            elif upside > 0:
-                score += 5
-        
-        if data.get("profit_margin") and data["profit_margin"] > 0.15:
-            score += 5
-        if data.get("return_on_equity") and data["return_on_equity"] > 0.15:
-            score += 5
+        # Adjust for daily performance
+        if prev_close > 0:
+            change = (price - prev_close) / prev_close * 100
+            if change > 2:
+                score += 3
+            elif change > 0:
+                score += 1
+            elif change < -2:
+                score -= 3
         
         return max(0, min(100, score))
     
-    def get_historical_data(self, symbol: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
-        """Get historical price data."""
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(period=period, interval=interval)
-            return df
-        except Exception as e:
-            logger.error(f"Error fetching history for {symbol}: {e}")
-            return pd.DataFrame()
+    def _get_fallback(self, symbol: str) -> Dict[str, Any]:
+        """Return fallback data."""
+        meta = STOCK_METADATA.get(symbol, {"name": symbol, "sector": "Unknown", "industry": "Unknown"})
+        return {
+            "symbol": symbol,
+            "name": meta["name"],
+            "sector": meta["sector"],
+            "industry": meta["industry"],
+            "currency": "USD",
+            "current_price": 0,
+            "previous_close": 0,
+            "pe_ratio": 25,
+            "peg_ratio": 2.0,
+            "revenue_growth": 0.08,
+            "fair_value": 0,
+            "upside_potential": 0,
+            "score": 50,
+            "error": "Unable to fetch live data"
+        }
     
     def get_multiple_stocks(self, symbols: List[str]) -> List[Dict[str, Any]]:
-        """Get data for multiple stocks - from cache."""
+        """Fetch data for multiple stocks."""
         results = []
         for symbol in symbols:
             data = self.get_stock_info(symbol)
-            if data and "error" not in data:
+            if data.get("current_price", 0) > 0:
                 results.append(data)
         return results
     
     def get_universe(self) -> List[str]:
         """Get the default stock universe."""
-        return self.DEFAULT_UNIVERSE.copy()
+        return DEFAULT_UNIVERSE.copy()
 
 
 # Singleton instance

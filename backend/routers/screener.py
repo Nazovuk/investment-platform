@@ -14,13 +14,13 @@ router = APIRouter()
 
 class ScreenerRequest(BaseModel):
     """Request body for custom screening."""
-    max_pe: Optional[float] = 25
-    max_peg: Optional[float] = 1.5
+    max_pe: Optional[float] = 100
+    max_peg: Optional[float] = 5.0
     max_price_to_book: Optional[float] = None
-    min_revenue_growth: Optional[float] = 0.10
+    min_revenue_growth: Optional[float] = None
     min_earnings_growth: Optional[float] = None
-    min_upside: Optional[float] = 15
-    min_score: Optional[int] = 60
+    min_upside: Optional[float] = None
+    min_score: Optional[int] = 0
     min_profit_margin: Optional[float] = None
     min_roe: Optional[float] = None
     min_dividend_yield: Optional[float] = None
@@ -33,11 +33,11 @@ class ScreenerRequest(BaseModel):
 
 @router.get("/")
 async def get_screener_results(
-    max_pe: Optional[float] = Query(25, description="Maximum P/E ratio"),
-    max_peg: Optional[float] = Query(1.5, description="Maximum PEG ratio"),
-    min_revenue_growth: Optional[float] = Query(0.10, description="Minimum revenue growth (0.10 = 10%)"),
-    min_upside: Optional[float] = Query(15, description="Minimum upside potential (%)"),
-    min_score: Optional[int] = Query(60, description="Minimum investment score (0-100)")
+    max_pe: Optional[float] = Query(100, description="Maximum P/E ratio"),
+    max_peg: Optional[float] = Query(5.0, description="Maximum PEG ratio"),
+    min_revenue_growth: Optional[float] = Query(None, description="Minimum revenue growth (0.10 = 10%)"),
+    min_upside: Optional[float] = Query(None, description="Minimum upside potential (%)"),
+    min_score: Optional[int] = Query(0, description="Minimum investment score (0-100)")
 ):
     """
     Get screened stocks based on filters.

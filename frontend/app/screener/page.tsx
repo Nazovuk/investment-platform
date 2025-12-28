@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { screenerApi, Stock } from '@/lib/api';
+import StockDetailModal from '@/components/StockDetailModal';
 
 type SortKey = 'symbol' | 'score' | 'upside_potential' | 'pe_ratio' | 'peg_ratio' | 'current_price';
 type SortDirection = 'asc' | 'desc';
@@ -15,6 +16,7 @@ export default function ScreenerPage() {
     const [sortKey, setSortKey] = useState<SortKey>('score');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -73,6 +75,10 @@ export default function ScreenerPage() {
             setSortKey(key);
             setSortDir('desc');
         }
+    };
+
+    const handleStockClick = (symbol: string) => {
+        setSelectedSymbol(symbol);
     };
 
     const filteredAndSortedStocks = useMemo(() => {
@@ -288,7 +294,7 @@ export default function ScreenerPage() {
                             </thead>
                             <tbody>
                                 {filteredAndSortedStocks.map((stock) => (
-                                    <tr key={stock.symbol}>
+                                    <tr key={stock.symbol} onClick={() => handleStockClick(stock.symbol)} style={{ cursor: 'pointer' }} className="hover:bg-white/5 transition-colors">
                                         <td>
                                             <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>{stock.symbol}</span>
                                         </td>
@@ -359,8 +365,14 @@ export default function ScreenerPage() {
 
             {/* Data Source Notice */}
             <div className="text-center text-xs text-muted mt-lg">
-                📊 Data source: yfinance (15-minute delay) • Updates every 60 seconds when auto-refresh is enabled
+                📊 Data source: Finnhub (real-time) • Click any stock for detailed analysis
             </div>
+
+            {/* Stock Detail Modal */}
+            <StockDetailModal
+                symbol={selectedSymbol}
+                onClose={() => setSelectedSymbol(null)}
+            />
         </div>
     );
 }

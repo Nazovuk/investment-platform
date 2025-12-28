@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 
-from routers import screener, optimizer, backtest, portfolio, currency, auth, ai_recommendations, alerts
+from routers import screener, optimizer, backtest, portfolio, currency, auth, ai_recommendations, alerts, stock_detail
 from database import engine, Base
 
 
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NazovHybrid Investment Platform",
     description="Hedge fund-style portfolio management and stock screening API",
-    version="7.0.0",
+    version="8.0.0",
     lifespan=lifespan
 )
 
@@ -43,6 +43,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(screener.router, prefix="/api/screener", tags=["Screener"])
+app.include_router(stock_detail.router, prefix="/api/stock", tags=["Stock Detail"])
 app.include_router(optimizer.router, prefix="/api/optimizer", tags=["Optimizer"])
 app.include_router(backtest.router, prefix="/api/backtest", tags=["Backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["Portfolio"])

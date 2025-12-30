@@ -78,7 +78,8 @@ export default function ScreenerPage() {
     };
 
     const handleStockClick = (symbol: string) => {
-        router.push(`/stock/${symbol}`);
+        // Open in new tab so user doesn't lose their place
+        window.open(`/stock/${symbol}`, '_blank', 'noopener,noreferrer');
     };
 
     const filteredAndSortedStocks = useMemo(() => {

@@ -373,9 +373,16 @@ export default function PortfolioPage() {
                                             {positions.map(pos => (
                                                 <tr key={pos.symbol}>
                                                     <td>
-                                                        <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>
-                                                            {pos.symbol}
-                                                        </span>
+                                                        <button
+                                                            onClick={() => window.open(`/stock/${pos.symbol}`, '_blank', 'noopener,noreferrer')}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                                color: '#a855f7', fontWeight: 'bold', padding: 0
+                                                            }}
+                                                            title={`Open ${pos.symbol} details in new tab`}
+                                                        >
+                                                            {pos.symbol} ↗
+                                                        </button>
                                                     </td>
                                                     <td className="text-muted truncate" style={{ maxWidth: 150 }}>{pos.name}</td>
                                                     <td className="text-right font-mono">{pos.shares}</td>

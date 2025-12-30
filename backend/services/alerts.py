@@ -18,12 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 class AlertType(str, Enum):
-    """Types of price alerts."""
+    """Types of price and technical alerts."""
+    # Price alerts
     PRICE_ABOVE = "price_above"
     PRICE_BELOW = "price_below"
     PERCENT_CHANGE = "percent_change"
     FAIR_VALUE_REACHED = "fair_value_reached"
     SCORE_THRESHOLD = "score_threshold"
+    # Technical alerts
+    GOLDEN_CROSS = "golden_cross"  # SMA 50 crosses above SMA 200
+    DEATH_CROSS = "death_cross"    # SMA 50 crosses below SMA 200
+    ABOVE_SMA50 = "above_sma50"    # Price crosses above 50-day MA
+    BELOW_SMA50 = "below_sma50"    # Price crosses below 50-day MA
+    ABOVE_SMA200 = "above_sma200"  # Price crosses above 200-day MA
+    BELOW_SMA200 = "below_sma200"  # Price crosses below 200-day MA
+    RSI_OVERSOLD = "rsi_oversold"  # RSI drops below 30
+    RSI_OVERBOUGHT = "rsi_overbought"  # RSI rises above 70
 
 
 class AlertStatus(str, Enum):
@@ -154,6 +164,7 @@ class EmailAlertsService:
         target_value: float
     ) -> str:
         """Generate default alert message."""
+        # Price alerts
         if alert_type == AlertType.PRICE_ABOVE:
             return f"{symbol} has reached ${target_value:.2f}"
         elif alert_type == AlertType.PRICE_BELOW:
@@ -164,6 +175,23 @@ class EmailAlertsService:
             return f"{symbol} has reached its fair value"
         elif alert_type == AlertType.SCORE_THRESHOLD:
             return f"{symbol} investment score reached {target_value}"
+        # Technical alerts
+        elif alert_type == AlertType.GOLDEN_CROSS:
+            return f"🌟 Golden Cross! {symbol} SMA50 crossed above SMA200 - bullish signal"
+        elif alert_type == AlertType.DEATH_CROSS:
+            return f"⚠️ Death Cross! {symbol} SMA50 crossed below SMA200 - bearish signal"
+        elif alert_type == AlertType.ABOVE_SMA50:
+            return f"{symbol} price crossed above 50-day moving average"
+        elif alert_type == AlertType.BELOW_SMA50:
+            return f"{symbol} price fell below 50-day moving average"
+        elif alert_type == AlertType.ABOVE_SMA200:
+            return f"{symbol} price crossed above 200-day moving average"
+        elif alert_type == AlertType.BELOW_SMA200:
+            return f"{symbol} price fell below 200-day moving average"
+        elif alert_type == AlertType.RSI_OVERSOLD:
+            return f"📉 {symbol} RSI below 30 - potentially oversold"
+        elif alert_type == AlertType.RSI_OVERBOUGHT:
+            return f"📈 {symbol} RSI above 70 - potentially overbought"
         return f"Alert triggered for {symbol}"
     
     def get_user_alerts(self, user_id: int) -> List[PriceAlert]:

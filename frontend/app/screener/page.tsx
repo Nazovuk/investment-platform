@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { screenerApi, Stock } from '@/lib/api';
-import StockDetailModal from '@/components/StockDetailModal';
 
 type SortKey = 'symbol' | 'score' | 'upside_potential' | 'pe_ratio' | 'peg_ratio' | 'current_price';
 type SortDirection = 'asc' | 'desc';
 
 export default function ScreenerPage() {
+    const router = useRouter();
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,6 @@ export default function ScreenerPage() {
     const [sortKey, setSortKey] = useState<SortKey>('score');
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -78,7 +78,7 @@ export default function ScreenerPage() {
     };
 
     const handleStockClick = (symbol: string) => {
-        setSelectedSymbol(symbol);
+        router.push(`/stock/${symbol}`);
     };
 
     const filteredAndSortedStocks = useMemo(() => {
@@ -367,12 +367,6 @@ export default function ScreenerPage() {
             <div className="text-center text-xs text-muted mt-lg">
                 📊 Data source: Finnhub (real-time) • Click any stock for detailed analysis
             </div>
-
-            {/* Stock Detail Modal */}
-            <StockDetailModal
-                symbol={selectedSymbol}
-                onClose={() => setSelectedSymbol(null)}
-            />
         </div>
     );
 }

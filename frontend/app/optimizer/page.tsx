@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const riskProfiles = [
     { id: 'conservative', name: 'Conservative', description: 'Lower risk, stable returns', maxVol: '10%', maxPos: '15%' },
@@ -12,34 +14,31 @@ const riskProfiles = [
     { id: 'ultra_aggressive', name: 'Ultra Aggressive', description: 'Maximum growth', maxVol: '50%', maxPos: '50%' },
 ];
 
-const mockOptimizationResult = {
-    expected_return: 18.5,
-    volatility: 15.2,
-    sharpe_ratio: 0.89,
-    allocations: [
-        { symbol: 'NVDA', name: 'NVIDIA Corporation', weight: 22.5, amount: 2250, shares: 4, price: 495.22 },
-        { symbol: 'GOOGL', name: 'Alphabet Inc.', weight: 20.0, amount: 2000, shares: 14, price: 140.25 },
-        { symbol: 'META', name: 'Meta Platforms', weight: 18.5, amount: 1850, shares: 5, price: 353.96 },
-        { symbol: 'MSFT', name: 'Microsoft Corp', weight: 15.0, amount: 1500, shares: 3, price: 376.17 },
-        { symbol: 'AAPL', name: 'Apple Inc.', weight: 14.0, amount: 1400, shares: 7, price: 193.60 },
-        { symbol: 'V', name: 'Visa Inc.', weight: 10.0, amount: 1000, shares: 3, price: 260.15 },
-    ]
-};
+interface Allocation {
+    symbol: string;
+    name: string;
+    weight: number;
+    amount: number;
+    shares: number;
+    price: number;
+}
 
-// Mock efficient frontier data
-const frontierData = Array.from({ length: 50 }, (_, i) => ({
-    volatility: 8 + i * 0.5,
-    return: 8 + i * 0.3 + Math.random() * 2,
-    sharpe: (8 + i * 0.3) / (8 + i * 0.5)
-}));
+interface OptimizationResult {
+    expected_return: number;
+    volatility: number;
+    sharpe_ratio: number;
+    allocations: Allocation[];
+}
 
 export default function OptimizerPage() {
     const [symbols, setSymbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'META', 'AMZN']);
     const [newSymbol, setNewSymbol] = useState('');
     const [investmentAmount, setInvestmentAmount] = useState(10000);
     const [selectedRisk, setSelectedRisk] = useState('moderate');
-    const [result, setResult] = useState(mockOptimizationResult);
+    const [result, setResult] = useState<OptimizationResult | null>(null);
+    const [frontier, setFrontier] = useState<{ volatility: number; return: number; sharpe: number }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const addSymbol = () => {
         if (newSymbol && !symbols.includes(newSymbol.toUpperCase())) {
@@ -52,16 +51,59 @@ export default function OptimizerPage() {
         setSymbols(symbols.filter(s => s !== sym));
     };
 
-    const runOptimization = () => {
+    const runOptimization = async () => {
+        if (symbols.length < 2) return;
+
         setIsLoading(true);
-        setTimeout(() => {
-            setResult(mockOptimizationResult);
+        setError(null);
+
+        try {
+            // Call optimization API
+            const optRes = await fetch(`${API_URL}/api/optimizer/optimize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    symbols: symbols,
+                    investment_amount: investmentAmount,
+                    risk_profile: selectedRisk,
+                    min_weight: 0.02,
+                    period: '2y'
+                })
+            });
+
+            if (optRes.ok) {
+                const data = await optRes.json();
+                setResult({
+                    expected_return: data.optimization.expected_return,
+                    volatility: data.optimization.volatility,
+                    sharpe_ratio: data.optimization.sharpe_ratio,
+                    allocations: data.allocations
+                });
+            } else {
+                throw new Error('Optimization failed');
+            }
+
+            // Get efficient frontier
+            const frontierRes = await fetch(`${API_URL}/api/optimizer/efficient-frontier?symbols=${symbols.join(',')}&n_portfolios=50`);
+            if (frontierRes.ok) {
+                const frontierData = await frontierRes.json();
+                setFrontier(frontierData.frontier || []);
+            }
+        } catch (err) {
+            console.error('Optimization error:', err);
+            setError('Optimization failed. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
+    // Run initial optimization
+    useEffect(() => {
+        runOptimization();
+    }, []);
+
     // Pie chart for allocation
-    const pieData = [{
+    const pieData = result?.allocations && result.allocations.length > 0 ? [{
         values: result.allocations.map(a => a.weight),
         labels: result.allocations.map(a => a.symbol),
         type: 'pie' as const,
@@ -69,9 +111,9 @@ export default function OptimizerPage() {
         textinfo: 'label+percent',
         textposition: 'outside',
         marker: {
-            colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e']
+            colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308']
         },
-    }];
+    }] : [];
 
     const pieLayout = {
         showlegend: false,
@@ -86,38 +128,28 @@ export default function OptimizerPage() {
         }]
     };
 
-    // Efficient frontier scatter plot
-    const frontierChartData = [{
-        x: frontierData.map(d => d.volatility),
-        y: frontierData.map(d => d.return),
+    // Efficient frontier chart
+    const frontierChartData = frontier.length > 0 ? [{
+        x: frontier.map(d => d.volatility),
+        y: frontier.map(d => d.return),
         type: 'scatter' as const,
         mode: 'markers' as const,
         marker: {
             size: 8,
-            color: frontierData.map(d => d.sharpe),
+            color: frontier.map(d => d.sharpe),
             colorscale: 'Viridis',
             showscale: true,
             colorbar: { title: 'Sharpe', tickfont: { color: '#94a3b8' } }
         },
         hovertemplate: 'Vol: %{x:.1f}%<br>Return: %{y:.1f}%<extra></extra>'
-    }, {
+    }, result ? {
         x: [result.volatility],
         y: [result.expected_return],
         type: 'scatter' as const,
         mode: 'markers' as const,
         name: 'Optimal',
         marker: { size: 15, color: '#f43f5e', symbol: 'star' },
-    }];
-
-    const frontierLayout = {
-        showlegend: false,
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        margin: { t: 20, b: 50, l: 60, r: 80 },
-        font: { color: '#94a3b8', size: 12 },
-        xaxis: { title: 'Volatility (%)', gridcolor: 'rgba(255,255,255,0.05)' },
-        yaxis: { title: 'Expected Return (%)', gridcolor: 'rgba(255,255,255,0.05)' },
-    };
+    } : null].filter(Boolean) : [];
 
     return (
         <div>
@@ -127,7 +159,16 @@ export default function OptimizerPage() {
                     <h1 className="page-title">Portfolio Optimizer</h1>
                     <p className="page-subtitle">Maximize risk-adjusted returns using Modern Portfolio Theory</p>
                 </div>
+                {result && (
+                    <span className="badge badge-success">Live Data</span>
+                )}
             </header>
+
+            {error && (
+                <div className="card mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', padding: '12px' }}>
+                    <span style={{ color: '#ef4444' }}>⚠️ {error}</span>
+                </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 'var(--spacing-lg)' }}>
                 {/* Left Panel - Input */}
@@ -190,8 +231,7 @@ export default function OptimizerPage() {
                                         borderRadius: 'var(--radius-md)',
                                         border: `1px solid ${selectedRisk === profile.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                                         background: selectedRisk === profile.id ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                                        cursor: 'pointer',
-                                        transition: 'all var(--transition-fast)'
+                                        cursor: 'pointer'
                                     }}
                                 >
                                     <input
@@ -249,7 +289,7 @@ export default function OptimizerPage() {
                             onClick={runOptimization}
                             disabled={isLoading || symbols.length < 2}
                         >
-                            {isLoading ? 'Optimizing...' : 'Optimize Portfolio'}
+                            {isLoading ? '⏳ Optimizing...' : '🚀 Optimize Portfolio'}
                         </button>
                     </div>
                 </div>
@@ -257,101 +297,130 @@ export default function OptimizerPage() {
                 {/* Right Panel - Results */}
                 <div className="flex flex-col gap-lg">
                     {/* Portfolio Metrics */}
-                    <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                        <div className="stat-card">
-                            <span className="stat-label">Expected Return</span>
-                            <span className="stat-value value-positive">{result.expected_return}%</span>
+                    {result && (
+                        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                            <div className="stat-card">
+                                <span className="stat-label">Expected Return</span>
+                                <span className="stat-value value-positive">{result.expected_return}%</span>
+                            </div>
+                            <div className="stat-card">
+                                <span className="stat-label">Volatility</span>
+                                <span className="stat-value">{result.volatility}%</span>
+                            </div>
+                            <div className="stat-card">
+                                <span className="stat-label">Sharpe Ratio</span>
+                                <span className="stat-value">{result.sharpe_ratio}</span>
+                            </div>
                         </div>
-                        <div className="stat-card">
-                            <span className="stat-label">Volatility</span>
-                            <span className="stat-value">{result.volatility}%</span>
-                        </div>
-                        <div className="stat-card">
-                            <span className="stat-label">Sharpe Ratio</span>
-                            <span className="stat-value">{result.sharpe_ratio}</span>
-                        </div>
-                    </div>
+                    )}
 
-                    {/* Charts Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
-                        {/* Allocation Pie */}
-                        <div className="card">
-                            <div className="card-header">
-                                <h3 className="card-title">Optimal Allocation</h3>
-                            </div>
-                            <div style={{ height: 280 }}>
-                                <Plot
-                                    data={pieData}
-                                    layout={pieLayout as any}
-                                    config={{ displayModeBar: false, responsive: true }}
-                                    style={{ width: '100%', height: '100%' }}
-                                />
-                            </div>
+                    {isLoading && !result && (
+                        <div className="card text-center" style={{ padding: '48px' }}>
+                            <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
+                            <p className="text-muted">Running Mean-Variance Optimization...</p>
                         </div>
+                    )}
 
-                        {/* Efficient Frontier */}
-                        <div className="card">
-                            <div className="card-header">
-                                <h3 className="card-title">Efficient Frontier</h3>
-                            </div>
-                            <div style={{ height: 280 }}>
-                                <Plot
-                                    data={frontierChartData}
-                                    layout={frontierLayout as any}
-                                    config={{ displayModeBar: false, responsive: true }}
-                                    style={{ width: '100%', height: '100%' }}
-                                />
-                            </div>
-                        </div>
-                    </div>
+                    {result && (
+                        <>
+                            {/* Charts Row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
+                                {/* Allocation Pie */}
+                                <div className="card">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Optimal Allocation</h3>
+                                    </div>
+                                    <div style={{ height: 280 }}>
+                                        <Plot
+                                            data={pieData}
+                                            layout={pieLayout as any}
+                                            config={{ displayModeBar: false, responsive: true }}
+                                            style={{ width: '100%', height: '100%' }}
+                                        />
+                                    </div>
+                                </div>
 
-                    {/* Allocation Table */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Recommended Allocation</h3>
-                            <span className="text-sm text-muted">Total: ${investmentAmount.toLocaleString()}</span>
-                        </div>
-                        <div className="table-container">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Symbol</th>
-                                        <th>Name</th>
-                                        <th className="text-right">Weight</th>
-                                        <th className="text-right">Amount</th>
-                                        <th className="text-right">Shares</th>
-                                        <th className="text-right">Price</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {result.allocations.map(alloc => (
-                                        <tr key={alloc.symbol}>
-                                            <td>
-                                                <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>
-                                                    {alloc.symbol}
-                                                </span>
-                                            </td>
-                                            <td className="text-muted">{alloc.name}</td>
-                                            <td className="text-right">
-                                                <div className="score-indicator" style={{ justifyContent: 'flex-end' }}>
-                                                    <span className="font-mono">{alloc.weight}%</span>
-                                                    <div className="score-bar" style={{ width: 60 }}>
-                                                        <div
-                                                            className="score-fill good"
-                                                            style={{ width: `${alloc.weight * 4}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="text-right font-mono">${alloc.amount.toLocaleString()}</td>
-                                            <td className="text-right font-mono">{alloc.shares}</td>
-                                            <td className="text-right font-mono text-muted">${alloc.price}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                {/* Efficient Frontier */}
+                                <div className="card">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Efficient Frontier</h3>
+                                    </div>
+                                    <div style={{ height: 280 }}>
+                                        <Plot
+                                            data={frontierChartData as any}
+                                            layout={{
+                                                showlegend: false,
+                                                paper_bgcolor: 'transparent',
+                                                plot_bgcolor: 'transparent',
+                                                margin: { t: 20, b: 50, l: 60, r: 80 },
+                                                font: { color: '#94a3b8', size: 12 },
+                                                xaxis: { title: 'Volatility (%)', gridcolor: 'rgba(255,255,255,0.05)' },
+                                                yaxis: { title: 'Expected Return (%)', gridcolor: 'rgba(255,255,255,0.05)' },
+                                            } as any}
+                                            config={{ displayModeBar: false, responsive: true }}
+                                            style={{ width: '100%', height: '100%' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Allocation Table */}
+                            <div className="card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Recommended Allocation</h3>
+                                    <span className="text-sm text-muted">Total: ${investmentAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="table-container">
+                                    <table className="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Symbol</th>
+                                                <th>Name</th>
+                                                <th className="text-right">Weight</th>
+                                                <th className="text-right">Amount</th>
+                                                <th className="text-right">Shares</th>
+                                                <th className="text-right">Price</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {result.allocations.map(alloc => (
+                                                <tr key={alloc.symbol}>
+                                                    <td>
+                                                        <button
+                                                            onClick={() => {
+                                                                const w = 1200, h = 800;
+                                                                const left = (window.screen.width - w) / 2;
+                                                                const top = (window.screen.height - h) / 2;
+                                                                window.open(`/stock/${alloc.symbol}`, `stock_${alloc.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                                            }}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0 }}
+                                                        >
+                                                            {alloc.symbol} ↗
+                                                        </button>
+                                                    </td>
+                                                    <td className="text-muted">{alloc.name}</td>
+                                                    <td className="text-right">
+                                                        <div className="score-indicator" style={{ justifyContent: 'flex-end' }}>
+                                                            <span className="font-mono">{alloc.weight}%</span>
+                                                            <div className="score-bar" style={{ width: 60 }}>
+                                                                <div
+                                                                    className="score-fill good"
+                                                                    style={{ width: `${alloc.weight * 4}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="text-right font-mono">${alloc.amount.toLocaleString()}</td>
+                                                    <td className="text-right font-mono">{alloc.shares}</td>
+                                                    <td className="text-right font-mono text-muted">${alloc.price}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

@@ -1,51 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
-// Mock backtest data
-const mockBacktestResult = {
-    start_date: '2023-01-01',
-    end_date: '2024-01-01',
-    trading_days: 252,
-    total_return: 28.5,
-    cagr: 28.5,
-    volatility: 18.2,
-    sharpe_ratio: 1.42,
-    sortino_ratio: 2.15,
-    max_drawdown: -12.3,
-    benchmark_return: 24.2,
-    alpha: 4.3,
-    beta: 1.08,
-    equity_curve: generateEquityCurve(),
-};
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-function generateEquityCurve() {
-    const data = [];
-    const startDate = new Date('2023-01-01');
-    let portfolioValue = 10000;
-    let benchmarkValue = 10000;
-
-    for (let i = 0; i < 252; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + i);
-
-        // Simulate daily returns
-        const portfolioReturn = (Math.random() - 0.48) * 0.02;
-        const benchmarkReturn = (Math.random() - 0.48) * 0.018;
-
-        portfolioValue *= (1 + portfolioReturn);
-        benchmarkValue *= (1 + benchmarkReturn);
-
-        data.push({
-            date: date.toISOString().split('T')[0],
-            portfolio: portfolioValue,
-            benchmark: benchmarkValue
-        });
-    }
-    return data;
+interface BacktestResult {
+    start_date: string;
+    end_date: string;
+    trading_days: number;
+    total_return: number;
+    cagr: number;
+    volatility: number;
+    sharpe_ratio: number;
+    sortino_ratio: number;
+    max_drawdown: number;
+    benchmark_return: number;
+    alpha: number;
+    beta: number;
+    equity_curve: { date: string; portfolio: number; benchmark: number }[];
 }
 
 export default function BacktestPage() {
@@ -58,20 +33,70 @@ export default function BacktestPage() {
     ]);
     const [period, setPeriod] = useState('1y');
     const [benchmark, setBenchmark] = useState('SPY');
-    const [result, setResult] = useState(mockBacktestResult);
+    const [initialValue, setInitialValue] = useState(10000);
+    const [result, setResult] = useState<BacktestResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const runBacktest = () => {
+    const runBacktest = async () => {
+        const totalWeight = portfolio.reduce((sum, p) => sum + p.weight, 0);
+        if (totalWeight === 0) return;
+
         setIsLoading(true);
-        // Simulate API call
-        setTimeout(() => {
-            setResult(mockBacktestResult);
+        setError(null);
+
+        try {
+            // Build portfolio weights object
+            const portfolioWeights: Record<string, number> = {};
+            portfolio.forEach(p => {
+                if (p.symbol) {
+                    portfolioWeights[p.symbol] = p.weight / totalWeight;
+                }
+            });
+
+            // Calculate dates based on period
+            const now = new Date();
+            const periodDays: Record<string, number> = {
+                '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '5y': 1825
+            };
+            const days = periodDays[period] || 365;
+            const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+            const response = await fetch(`${API_URL}/api/backtest/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    portfolio: portfolioWeights,
+                    start_date: startDate.toISOString().split('T')[0],
+                    end_date: now.toISOString().split('T')[0],
+                    initial_value: initialValue,
+                    benchmark: benchmark,
+                    rebalance_frequency: 'monthly'
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.backtest) {
+                setResult(data.backtest);
+            } else {
+                throw new Error(data.error || 'Backtest failed');
+            }
+        } catch (err) {
+            console.error('Backtest error:', err);
+            setError('Backtest failed. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 1000);
+        }
     };
 
+    // Run initial backtest
+    useEffect(() => {
+        runBacktest();
+    }, []);
+
     // Chart data
-    const equityChartData = [
+    const equityChartData = result?.equity_curve ? [
         {
             x: result.equity_curve.map(d => d.date),
             y: result.equity_curve.map(d => d.portfolio),
@@ -87,28 +112,10 @@ export default function BacktestPage() {
             y: result.equity_curve.map(d => d.benchmark),
             type: 'scatter' as const,
             mode: 'lines' as const,
-            name: 'Benchmark (SPY)',
+            name: `Benchmark (${benchmark})`,
             line: { color: '#64748b', width: 2, dash: 'dash' as const },
         }
-    ];
-
-    const chartLayout = {
-        showlegend: true,
-        legend: { orientation: 'h' as const, y: -0.1 },
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        margin: { t: 20, b: 50, l: 60, r: 20 },
-        font: { color: '#94a3b8', size: 12 },
-        xaxis: {
-            gridcolor: 'rgba(255,255,255,0.05)',
-            tickformat: '%b %Y',
-        },
-        yaxis: {
-            gridcolor: 'rgba(255,255,255,0.05)',
-            tickprefix: '$',
-        },
-        hovermode: 'x unified' as const,
-    };
+    ] : [];
 
     return (
         <div>
@@ -118,7 +125,14 @@ export default function BacktestPage() {
                     <h1 className="page-title">Backtest</h1>
                     <p className="page-subtitle">Test your portfolio strategy against historical data</p>
                 </div>
+                {result && <span className="badge badge-success">Live Data</span>}
             </header>
+
+            {error && (
+                <div className="card mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', padding: '12px' }}>
+                    <span style={{ color: '#ef4444' }}>⚠️ {error}</span>
+                </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: 'var(--spacing-lg)' }}>
                 {/* Left Panel - Configuration */}
@@ -222,7 +236,14 @@ export default function BacktestPage() {
 
                             <div className="filter-group">
                                 <label className="filter-label">Initial Investment</label>
-                                <input type="text" className="input" defaultValue="$10,000" />
+                                <input
+                                    type="number"
+                                    className="input"
+                                    value={initialValue}
+                                    onChange={(e) => setInitialValue(Number(e.target.value))}
+                                    min="1000"
+                                    step="1000"
+                                />
                             </div>
 
                             <button
@@ -230,7 +251,7 @@ export default function BacktestPage() {
                                 onClick={runBacktest}
                                 disabled={isLoading}
                             >
-                                {isLoading ? 'Running...' : 'Run Backtest'}
+                                {isLoading ? '⏳ Running Backtest...' : '🚀 Run Backtest'}
                             </button>
                         </div>
                     </div>
@@ -238,126 +259,105 @@ export default function BacktestPage() {
 
                 {/* Right Panel - Results */}
                 <div className="flex flex-col gap-lg">
-                    {/* Performance Chart */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Performance</h3>
-                            <div className="flex items-center gap-md">
-                                <span className="badge badge-success">
-                                    +{result.total_return}%
-                                </span>
-                                <span className="text-sm text-muted">
-                                    vs Benchmark: +{result.benchmark_return}%
-                                </span>
+                    {isLoading && !result && (
+                        <div className="card text-center" style={{ padding: '48px' }}>
+                            <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
+                            <p className="text-muted">Running backtest simulation...</p>
+                        </div>
+                    )}
+
+                    {result && (
+                        <>
+                            {/* Performance Chart */}
+                            <div className="card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Performance</h3>
+                                    <div className="flex items-center gap-md">
+                                        <span className={`badge ${result.total_return >= 0 ? 'badge-success' : 'badge-danger'}`}>
+                                            {result.total_return >= 0 ? '+' : ''}{result.total_return?.toFixed(1)}%
+                                        </span>
+                                        <span className="text-sm text-muted">
+                                            vs Benchmark: {result.benchmark_return >= 0 ? '+' : ''}{result.benchmark_return?.toFixed(1)}%
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div style={{ height: 350 }}>
+                                    <Plot
+                                        data={equityChartData}
+                                        layout={{
+                                            showlegend: true,
+                                            legend: { orientation: 'h' as const, y: -0.1 },
+                                            paper_bgcolor: 'transparent',
+                                            plot_bgcolor: 'transparent',
+                                            margin: { t: 20, b: 50, l: 60, r: 20 },
+                                            font: { color: '#94a3b8', size: 12 },
+                                            xaxis: { gridcolor: 'rgba(255,255,255,0.05)', tickformat: '%b %Y' },
+                                            yaxis: { gridcolor: 'rgba(255,255,255,0.05)', tickprefix: '$' },
+                                            hovermode: 'x unified' as const,
+                                        } as any}
+                                        config={{ displayModeBar: false, responsive: true }}
+                                        style={{ width: '100%', height: '100%' }}
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        <div style={{ height: 350 }}>
-                            <Plot
-                                data={equityChartData}
-                                layout={chartLayout as any}
-                                config={{ displayModeBar: false, responsive: true }}
-                                style={{ width: '100%', height: '100%' }}
-                            />
-                        </div>
-                    </div>
+                            {/* Metrics Grid */}
+                            <div className="stats-grid">
+                                <MetricCard label="Total Return" value={`${result.total_return?.toFixed(1)}%`} positive={result.total_return > 0} />
+                                <MetricCard label="CAGR" value={`${result.cagr?.toFixed(1)}%`} positive={result.cagr > 0} />
+                                <MetricCard label="Sharpe Ratio" value={result.sharpe_ratio?.toFixed(2)} positive={result.sharpe_ratio > 1} />
+                                <MetricCard label="Sortino Ratio" value={result.sortino_ratio?.toFixed(2)} positive={result.sortino_ratio > 1} />
+                                <MetricCard label="Volatility" value={`${result.volatility?.toFixed(1)}%`} neutral />
+                                <MetricCard label="Max Drawdown" value={`${result.max_drawdown?.toFixed(1)}%`} positive={false} />
+                                <MetricCard label="Alpha" value={`${result.alpha > 0 ? '+' : ''}${result.alpha?.toFixed(1)}%`} positive={result.alpha > 0} />
+                                <MetricCard label="Beta" value={result.beta?.toFixed(2)} neutral />
+                            </div>
 
-                    {/* Metrics Grid */}
-                    <div className="stats-grid">
-                        <MetricCard
-                            label="Total Return"
-                            value={`${result.total_return}%`}
-                            positive={result.total_return > 0}
-                        />
-                        <MetricCard
-                            label="CAGR"
-                            value={`${result.cagr}%`}
-                            positive={result.cagr > 0}
-                        />
-                        <MetricCard
-                            label="Sharpe Ratio"
-                            value={result.sharpe_ratio.toFixed(2)}
-                            positive={result.sharpe_ratio > 1}
-                        />
-                        <MetricCard
-                            label="Sortino Ratio"
-                            value={result.sortino_ratio.toFixed(2)}
-                            positive={result.sortino_ratio > 1}
-                        />
-                        <MetricCard
-                            label="Volatility"
-                            value={`${result.volatility}%`}
-                            neutral
-                        />
-                        <MetricCard
-                            label="Max Drawdown"
-                            value={`${result.max_drawdown}%`}
-                            positive={false}
-                        />
-                        <MetricCard
-                            label="Alpha"
-                            value={`${result.alpha > 0 ? '+' : ''}${result.alpha}%`}
-                            positive={result.alpha > 0}
-                        />
-                        <MetricCard
-                            label="Beta"
-                            value={result.beta.toFixed(2)}
-                            neutral
-                        />
-                    </div>
-
-                    {/* Comparison Table */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Performance Comparison</h3>
-                        </div>
-                        <div className="table-container">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Metric</th>
-                                        <th className="text-right">Portfolio</th>
-                                        <th className="text-right">Benchmark</th>
-                                        <th className="text-right">Difference</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Total Return</td>
-                                        <td className="text-right font-mono value-positive">+{result.total_return}%</td>
-                                        <td className="text-right font-mono">+{result.benchmark_return}%</td>
-                                        <td className="text-right font-mono value-positive">
-                                            +{(result.total_return - result.benchmark_return).toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>Volatility</td>
-                                        <td className="text-right font-mono">{result.volatility}%</td>
-                                        <td className="text-right font-mono">15.8%</td>
-                                        <td className="text-right font-mono text-muted">
-                                            +{(result.volatility - 15.8).toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>Sharpe Ratio</td>
-                                        <td className="text-right font-mono value-positive">{result.sharpe_ratio}</td>
-                                        <td className="text-right font-mono">1.25</td>
-                                        <td className="text-right font-mono value-positive">
-                                            +{(result.sharpe_ratio - 1.25).toFixed(2)}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>Max Drawdown</td>
-                                        <td className="text-right font-mono value-negative">{result.max_drawdown}%</td>
-                                        <td className="text-right font-mono">-10.5%</td>
-                                        <td className="text-right font-mono value-negative">
-                                            {(result.max_drawdown - (-10.5)).toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                            {/* Comparison Table */}
+                            <div className="card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Performance Comparison</h3>
+                                </div>
+                                <div className="table-container">
+                                    <table className="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Metric</th>
+                                                <th className="text-right">Portfolio</th>
+                                                <th className="text-right">Benchmark</th>
+                                                <th className="text-right">Difference</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Total Return</td>
+                                                <td className={`text-right font-mono ${result.total_return >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                                    {result.total_return >= 0 ? '+' : ''}{result.total_return?.toFixed(1)}%
+                                                </td>
+                                                <td className="text-right font-mono">
+                                                    {result.benchmark_return >= 0 ? '+' : ''}{result.benchmark_return?.toFixed(1)}%
+                                                </td>
+                                                <td className={`text-right font-mono ${(result.total_return - result.benchmark_return) >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                                    {(result.total_return - result.benchmark_return) >= 0 ? '+' : ''}{(result.total_return - result.benchmark_return)?.toFixed(1)}%
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Alpha</td>
+                                                <td className={`text-right font-mono ${result.alpha >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                                    {result.alpha >= 0 ? '+' : ''}{result.alpha?.toFixed(2)}%
+                                                </td>
+                                                <td className="text-right font-mono text-muted">0.00%</td>
+                                                <td className={`text-right font-mono ${result.alpha >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                                    {result.alpha >= 0 ? '+' : ''}{result.alpha?.toFixed(2)}%
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

@@ -363,7 +363,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                             {isUndervalued ? 'UNDERVALUED' : isOvervalued ? 'OVERVALUED' : 'FAIR'}
                                         </span>
                                     </h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                         <div>
                                             <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Current Price</div>
                                             <div style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>${fmt(detail.current_price)}</div>
@@ -378,13 +378,6 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                                 {premium >= 0 ? '+' : ''}{fmt(premium)}%
                                             </div>
                                         </div>
-                                        <div>
-                                            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Method</div>
-                                            <div style={{ fontSize: '14px', color: '#d1d5db' }}>EPS × Sector P/E + Analyst</div>
-                                        </div>
-                                    </div>
-                                    <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', fontSize: '13px', color: '#9ca3af' }}>
-                                        📊 <strong>Calculation:</strong> Fair Value = (EPS ${fmt(detail.eps)} × Sector P/E {avgPE}) + Analyst Target ${fmt(fairValueTarget)} / 2 = <strong>${fmt(fairValue)}</strong>
                                     </div>
                                 </Card>
                             ) : null;

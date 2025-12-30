@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, TrendingUp, DollarSign, Target, Activity, Building2, BarChart3 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, TrendingUp, DollarSign, Target, Activity, Building2, BarChart3, Briefcase } from 'lucide-react';
 
 const Plot = dynamic(() => import('react-plotly.js'), {
     ssr: false,
@@ -118,7 +118,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center bg-[#0d1117]">
                 <div className="animate-spin rounded-full h-12 w-12 border-2 border-violet-500 border-t-transparent"></div>
             </div>
         );
@@ -126,7 +126,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
     if (error || !detail) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0d1117]">
                 <p className="text-red-400 text-xl">{error || 'Stock not found'}</p>
                 <Link href="/screener" className="text-violet-400 hover:underline">← Back to Screener</Link>
             </div>
@@ -144,70 +144,92 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
     return (
         <div className="min-h-screen bg-[#0d1117]">
             {/* Header */}
-            <header className="sticky top-0 z-50 bg-[#161b22] border-b border-white/10 px-6 py-4">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => router.back()} className="p-2 rounded-lg hover:bg-white/10 transition">
-                            <ArrowLeft className="w-5 h-5 text-gray-400" />
+            <header style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 50,
+                backgroundColor: '#161b22',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px'
+            }}>
+                <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <button
+                            onClick={() => router.back()}
+                            style={{ padding: '8px', borderRadius: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                        >
+                            <ArrowLeft style={{ width: '20px', height: '20px', color: '#9ca3af' }} />
                         </button>
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center text-lg font-bold text-white">
+                        <div style={{
+                            width: '48px', height: '48px', borderRadius: '12px',
+                            background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '18px', fontWeight: 'bold', color: 'white'
+                        }}>
                             {symbol.slice(0, 2)}
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-2xl font-bold text-white">{symbol}</h1>
-                                <span className="px-2 py-0.5 rounded bg-white/10 text-xs text-gray-400">{detail.sector}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', margin: 0 }}>{symbol}</h1>
+                                <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', fontSize: '12px', color: '#9ca3af' }}>
+                                    {detail.sector}
+                                </span>
                             </div>
-                            <p className="text-gray-400 text-sm">{detail.name}</p>
+                            <p style={{ color: '#9ca3af', fontSize: '14px', margin: 0 }}>{detail.name}</p>
                         </div>
                     </div>
-                    <div className="text-right">
-                        <div className="text-3xl font-bold text-white">${fmt(detail.current_price)}</div>
-                        <div className={`flex items-center justify-end gap-1 ${detail.change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {detail.change_percent >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                            <span className="font-medium">{detail.change_percent >= 0 ? '+' : ''}{fmt(detail.change_percent)}%</span>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'white' }}>${fmt(detail.current_price)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', color: detail.change_percent >= 0 ? '#10b981' : '#ef4444' }}>
+                            {detail.change_percent >= 0 ? <ArrowUpRight style={{ width: '16px', height: '16px' }} /> : <ArrowDownRight style={{ width: '16px', height: '16px' }} />}
+                            <span style={{ fontWeight: '500' }}>{detail.change_percent >= 0 ? '+' : ''}{fmt(detail.change_percent)}%</span>
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* View Tabs */}
-            <div className="max-w-7xl mx-auto px-6 pt-6">
-                <div className="flex gap-2 mb-6">
-                    <button
-                        onClick={() => setActiveView('chart')}
-                        className={`px-5 py-2.5 rounded-lg font-medium transition ${activeView === 'chart' ? 'bg-violet-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                    >
-                        <BarChart3 className="w-4 h-4 inline mr-2" />Price Chart
-                    </button>
-                    <button
-                        onClick={() => setActiveView('fundamentals')}
-                        className={`px-5 py-2.5 rounded-lg font-medium transition ${activeView === 'fundamentals' ? 'bg-violet-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                    >
-                        <Activity className="w-4 h-4 inline mr-2" />Fundamentals
-                    </button>
+            {/* Tab Buttons */}
+            <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px 0' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                    <TabButton active={activeView === 'chart'} onClick={() => setActiveView('chart')}>
+                        <BarChart3 style={{ width: '16px', height: '16px', marginRight: '8px' }} />
+                        Price Chart
+                    </TabButton>
+                    <TabButton active={activeView === 'fundamentals'} onClick={() => setActiveView('fundamentals')}>
+                        <Activity style={{ width: '16px', height: '16px', marginRight: '8px' }} />
+                        Fundamentals
+                    </TabButton>
                 </div>
             </div>
 
             {/* Content */}
-            <main className="max-w-7xl mx-auto px-6 pb-12">
+            <main style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 24px 48px' }}>
                 {activeView === 'chart' ? (
-                    <div className="space-y-6">
+                    <div>
                         {/* Period Selector */}
-                        <div className="flex gap-2">
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
                             {['1mo', '3mo', '6mo', '1y', '2y'].map(p => (
                                 <button
                                     key={p}
                                     onClick={() => setPeriod(p)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium ${period === p ? 'bg-violet-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                                    style={{
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        fontWeight: '500',
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        background: period === p ? '#7c3aed' : 'rgba(255,255,255,0.05)',
+                                        color: period === p ? 'white' : '#9ca3af',
+                                    }}
                                 >
                                     {p.toUpperCase()}
                                 </button>
                             ))}
                         </div>
 
-                        {/* Chart */}
-                        <div className="bg-[#161b22] rounded-2xl p-6">
+                        {/* Chart Card */}
+                        <Card>
                             {history.length > 0 ? (
                                 <Plot
                                     data={[
@@ -238,102 +260,118 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                     style={{ width: '100%' }}
                                 />
                             ) : (
-                                <div className="h-80 flex items-center justify-center text-gray-500">No chart data</div>
+                                <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                                    No chart data available
+                                </div>
                             )}
-                        </div>
-
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <QuickStat label="Open" value={`$${fmt(detail.previous_close)}`} />
-                            <QuickStat label="Day Range" value={`$${fmt(detail.fifty_two_week_low)} - $${fmt(detail.fifty_two_week_high)}`} />
-                            <QuickStat label="Volume" value="—" />
-                            <QuickStat label="Market Cap" value={fmtMoney(detail.market_cap)} />
-                        </div>
+                        </Card>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {/* Key Metrics */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <MetricBox label="Market Cap" value={fmtMoney(detail.market_cap)} />
-                            <MetricBox label="P/E Ratio" value={fmt(detail.pe_ratio)} highlight={detail.pe_ratio < 20} />
-                            <MetricBox label="EPS" value={`$${fmt(detail.eps)}`} />
-                            <MetricBox label="Beta" value={fmt(detail.beta)} />
-                            <MetricBox label="Dividend" value={detail.dividend_yield > 0 ? `${fmt(detail.dividend_yield)}%` : '—'} />
+                    <div>
+                        {/* Key Metrics Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                            <MetricCard label="Market Cap" value={fmtMoney(detail.market_cap)} />
+                            <MetricCard label="P/E Ratio" value={fmt(detail.pe_ratio)} highlight={detail.pe_ratio < 20 && detail.pe_ratio > 0} />
+                            <MetricCard label="EPS" value={`$${fmt(detail.eps)}`} />
+                            <MetricCard label="Beta" value={fmt(detail.beta)} />
+                            <MetricCard label="Dividend" value={detail.dividend_yield > 0 ? `${fmt(detail.dividend_yield)}%` : '—'} />
                         </div>
 
-                        {/* 52 Week Range */}
-                        <div className="bg-[#161b22] rounded-2xl p-6">
-                            <h3 className="text-white font-semibold mb-4">52 Week Price Range</h3>
-                            <div className="flex justify-between text-sm text-gray-400 mb-2">
+                        {/* 52 Week Range Card */}
+                        <Card style={{ marginBottom: '24px' }}>
+                            <h3 style={{ color: 'white', fontWeight: '600', marginBottom: '16px', fontSize: '16px' }}>
+                                52 Week Price Range
+                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#9ca3af', marginBottom: '12px' }}>
                                 <span>${fmt(detail.fifty_two_week_low)}</span>
-                                <span className="text-white font-medium">${fmt(detail.current_price)}</span>
+                                <span style={{ color: 'white', fontWeight: '600' }}>${fmt(detail.current_price)}</span>
                                 <span>${fmt(detail.fifty_two_week_high)}</span>
                             </div>
-                            <div className="relative h-3 bg-gradient-to-r from-red-500/30 via-yellow-500/30 to-emerald-500/30 rounded-full">
-                                <div
-                                    className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg border-2 border-violet-500"
-                                    style={{ left: `calc(${get52WPos()}% - 8px)` }}
-                                />
+                            <div style={{ position: 'relative', height: '12px', background: 'linear-gradient(to right, rgba(239,68,68,0.3), rgba(234,179,8,0.3), rgba(34,197,94,0.3))', borderRadius: '9999px' }}>
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    width: '16px',
+                                    height: '16px',
+                                    backgroundColor: 'white',
+                                    borderRadius: '50%',
+                                    border: '3px solid #7c3aed',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                    left: `calc(${get52WPos()}% - 8px)`
+                                }} />
                             </div>
-                        </div>
+                        </Card>
 
-                        {/* Metrics Grid */}
-                        <div className="grid md:grid-cols-3 gap-6">
+                        {/* Metrics Cards Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
                             {/* Valuation */}
-                            <Section title="Valuation" icon={<DollarSign className="w-4 h-4" />}>
-                                <Row label="P/E (TTM)" value={fmt(detail.pe_ratio)} />
-                                <Row label="P/E (Forward)" value={fmt(detail.forward_pe)} />
-                                <Row label="PEG Ratio" value={fmt(detail.peg_ratio)} />
-                                <Row label="P/B Ratio" value={fmt(detail.price_to_book)} />
-                                <Row label="EV/EBITDA" value={fmt(detail.ev_to_ebitda)} />
-                            </Section>
+                            <SectionCard title="Valuation" icon={<DollarSign style={{ width: '18px', height: '18px' }} />} color="#a855f7">
+                                <MetricRow label="P/E (TTM)" value={fmt(detail.pe_ratio)} />
+                                <MetricRow label="P/E (Forward)" value={fmt(detail.forward_pe)} />
+                                <MetricRow label="PEG Ratio" value={fmt(detail.peg_ratio)} />
+                                <MetricRow label="P/B Ratio" value={fmt(detail.price_to_book)} />
+                                <MetricRow label="EV/EBITDA" value={fmt(detail.ev_to_ebitda)} />
+                            </SectionCard>
 
                             {/* Profitability */}
-                            <Section title="Profitability" icon={<Activity className="w-4 h-4" />}>
-                                <Row label="Gross Margin" value={fmtPct(detail.gross_margin)} good={detail.gross_margin > 0} />
-                                <Row label="Operating Margin" value={fmtPct(detail.operating_margin)} good={detail.operating_margin > 0} />
-                                <Row label="Profit Margin" value={fmtPct(detail.profit_margin)} good={detail.profit_margin > 0} />
-                                <Row label="ROE" value={fmtPct(detail.roe)} good={detail.roe > 0.1} />
-                                <Row label="Revenue Growth" value={fmtPct(detail.revenue_growth)} good={detail.revenue_growth > 0} />
-                            </Section>
+                            <SectionCard title="Profitability" icon={<Activity style={{ width: '18px', height: '18px' }} />} color="#10b981">
+                                <MetricRow label="Gross Margin" value={fmtPct(detail.gross_margin)} positive={detail.gross_margin > 0} />
+                                <MetricRow label="Operating Margin" value={fmtPct(detail.operating_margin)} positive={detail.operating_margin > 0} />
+                                <MetricRow label="Profit Margin" value={fmtPct(detail.profit_margin)} positive={detail.profit_margin > 0} />
+                                <MetricRow label="ROE" value={fmtPct(detail.roe)} positive={detail.roe > 0.1} />
+                                <MetricRow label="Revenue Growth" value={fmtPct(detail.revenue_growth)} positive={detail.revenue_growth > 0} />
+                            </SectionCard>
 
-                            {/* Analyst */}
-                            <Section title="Analyst Consensus" icon={<Target className="w-4 h-4" />}>
-                                <div className="mb-3">
-                                    <span className={`px-3 py-1 rounded-lg text-sm font-bold uppercase ${detail.recommendation?.includes('buy') ? 'bg-emerald-500/20 text-emerald-400' :
-                                            detail.recommendation?.includes('sell') ? 'bg-red-500/20 text-red-400' :
-                                                'bg-yellow-500/20 text-yellow-400'
-                                        }`}>
+                            {/* Analyst Consensus */}
+                            <SectionCard title="Analyst Consensus" icon={<Target style={{ width: '18px', height: '18px' }} />} color="#3b82f6">
+                                <div style={{ marginBottom: '12px' }}>
+                                    <span style={{
+                                        display: 'inline-block',
+                                        padding: '4px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        fontWeight: '700',
+                                        textTransform: 'uppercase',
+                                        background: detail.recommendation?.includes('buy') ? 'rgba(16,185,129,0.2)' :
+                                            detail.recommendation?.includes('sell') ? 'rgba(239,68,68,0.2)' : 'rgba(234,179,8,0.2)',
+                                        color: detail.recommendation?.includes('buy') ? '#10b981' :
+                                            detail.recommendation?.includes('sell') ? '#ef4444' : '#eab308'
+                                    }}>
                                         {detail.recommendation?.replace('_', ' ') || '—'}
                                     </span>
-                                    <span className="ml-2 text-sm text-gray-500">({detail.num_analysts} analysts)</span>
+                                    <span style={{ marginLeft: '8px', fontSize: '13px', color: '#6b7280' }}>
+                                        ({detail.num_analysts} analysts)
+                                    </span>
                                 </div>
-                                <Row label="Target High" value={`$${fmt(detail.target_high)}`} />
-                                <Row label="Target Mean" value={`$${fmt(detail.target_mean)}`} />
-                                <Row label="Target Low" value={`$${fmt(detail.target_low)}`} />
-                                {upside !== null && <Row label="Upside Potential" value={`${upside >= 0 ? '+' : ''}${fmt(upside)}%`} good={upside > 0} />}
-                            </Section>
+                                <MetricRow label="Target High" value={`$${fmt(detail.target_high)}`} />
+                                <MetricRow label="Target Mean" value={`$${fmt(detail.target_mean)}`} />
+                                <MetricRow label="Target Low" value={`$${fmt(detail.target_low)}`} />
+                                {upside !== null && (
+                                    <MetricRow label="Upside Potential" value={`${upside >= 0 ? '+' : ''}${fmt(upside)}%`} positive={upside > 0} />
+                                )}
+                            </SectionCard>
 
                             {/* Balance Sheet */}
-                            <Section title="Balance Sheet" icon={<Building2 className="w-4 h-4" />}>
-                                <Row label="Total Cash" value={fmtMoney(detail.total_cash)} />
-                                <Row label="Total Debt" value={fmtMoney(detail.total_debt)} />
-                                <Row label="Debt/Equity" value={fmt(detail.debt_to_equity)} />
-                                <Row label="Current Ratio" value={fmt(detail.current_ratio)} good={detail.current_ratio > 1} />
-                            </Section>
+                            <SectionCard title="Balance Sheet" icon={<Building2 style={{ width: '18px', height: '18px' }} />} color="#f97316">
+                                <MetricRow label="Total Cash" value={fmtMoney(detail.total_cash)} />
+                                <MetricRow label="Total Debt" value={fmtMoney(detail.total_debt)} />
+                                <MetricRow label="Debt/Equity" value={fmt(detail.debt_to_equity)} />
+                                <MetricRow label="Current Ratio" value={fmt(detail.current_ratio)} positive={detail.current_ratio > 1} />
+                            </SectionCard>
 
                             {/* Dividends */}
-                            <Section title="Dividends" icon={<DollarSign className="w-4 h-4" />}>
-                                <Row label="Dividend Yield" value={detail.dividend_yield > 0 ? `${fmt(detail.dividend_yield)}%` : '—'} good={detail.dividend_yield > 0} />
-                                <Row label="Dividend Rate" value={detail.dividend_rate > 0 ? `$${fmt(detail.dividend_rate)}` : '—'} />
-                            </Section>
+                            <SectionCard title="Dividends" icon={<DollarSign style={{ width: '18px', height: '18px' }} />} color="#ec4899">
+                                <MetricRow label="Dividend Yield" value={detail.dividend_yield > 0 ? `${fmt(detail.dividend_yield)}%` : '—'} positive={detail.dividend_yield > 0} />
+                                <MetricRow label="Dividend Rate" value={detail.dividend_rate > 0 ? `$${fmt(detail.dividend_rate)}` : '—'} />
+                            </SectionCard>
 
-                            {/* Technicals */}
-                            <Section title="Moving Averages" icon={<TrendingUp className="w-4 h-4" />}>
-                                <Row label="50-Day MA" value={`$${fmt(detail.fifty_day_avg)}`} good={detail.current_price > detail.fifty_day_avg} />
-                                <Row label="200-Day MA" value={`$${fmt(detail.two_hundred_day_avg)}`} good={detail.current_price > detail.two_hundred_day_avg} />
-                                <Row label="Industry" value={detail.industry} />
-                            </Section>
+                            {/* Moving Averages */}
+                            <SectionCard title="Moving Averages" icon={<TrendingUp style={{ width: '18px', height: '18px' }} />} color="#06b6d4">
+                                <MetricRow label="50-Day MA" value={`$${fmt(detail.fifty_day_avg)}`} positive={detail.current_price > detail.fifty_day_avg} />
+                                <MetricRow label="200-Day MA" value={`$${fmt(detail.two_hundred_day_avg)}`} positive={detail.current_price > detail.two_hundred_day_avg} />
+                                <MetricRow label="Industry" value={detail.industry} />
+                            </SectionCard>
                         </div>
                     </div>
                 )}
@@ -342,41 +380,89 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
     );
 }
 
-function QuickStat({ label, value }: { label: string; value: string }) {
+// Helper Components with inline styles for reliability
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
     return (
-        <div className="bg-[#161b22] rounded-xl p-4">
-            <div className="text-xs text-gray-500 mb-1">{label}</div>
-            <div className="text-white font-medium">{value}</div>
+        <button
+            onClick={onClick}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                border: 'none',
+                fontWeight: '500',
+                fontSize: '14px',
+                cursor: 'pointer',
+                background: active ? '#7c3aed' : 'rgba(255,255,255,0.05)',
+                color: active ? 'white' : '#9ca3af',
+                transition: 'all 0.2s'
+            }}
+        >
+            {children}
+        </button>
+    );
+}
+
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{
+            backgroundColor: '#161b22',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            padding: '24px',
+            ...style
+        }}>
+            {children}
         </div>
     );
 }
 
-function MetricBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function MetricCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
     return (
-        <div className="bg-[#161b22] rounded-xl p-4 text-center">
-            <div className="text-xs text-gray-500 mb-1">{label}</div>
-            <div className={`text-xl font-bold ${highlight ? 'text-emerald-400' : 'text-white'}`}>{value}</div>
+        <div style={{
+            backgroundColor: '#161b22',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            padding: '16px',
+            textAlign: 'center'
+        }}>
+            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
+            <div style={{ fontSize: '20px', fontWeight: '700', color: highlight ? '#10b981' : 'white' }}>{value}</div>
         </div>
     );
 }
 
-function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function SectionCard({ title, icon, color, children }: { title: string; icon: React.ReactNode; color: string; children: React.ReactNode }) {
     return (
-        <div className="bg-[#161b22] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4 text-violet-400">
-                {icon}
-                <h3 className="font-semibold text-white">{title}</h3>
+        <div style={{
+            backgroundColor: '#161b22',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            padding: '20px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ color }}>{icon}</div>
+                <h3 style={{ color: 'white', fontWeight: '600', fontSize: '15px', margin: 0 }}>{title}</h3>
             </div>
-            <div className="space-y-3">{children}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {children}
+            </div>
         </div>
     );
 }
 
-function Row({ label, value, good }: { label: string; value: string; good?: boolean }) {
+function MetricRow({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
     return (
-        <div className="flex justify-between text-sm">
-            <span className="text-gray-400">{label}</span>
-            <span className={good === undefined ? 'text-white' : good ? 'text-emerald-400' : 'text-red-400'}>{value}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+            <span style={{ color: '#9ca3af' }}>{label}</span>
+            <span style={{
+                fontWeight: '500',
+                color: positive === undefined ? 'white' : positive ? '#10b981' : '#ef4444'
+            }}>
+                {value}
+            </span>
         </div>
     );
 }

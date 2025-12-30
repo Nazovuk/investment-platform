@@ -30,11 +30,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# CORS Configuration - include production Vercel URL
+default_origins = "http://localhost:3000,https://investment-platform-tawny-omega.vercel.app"
+origins = os.getenv("CORS_ORIGINS", default_origins).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for now
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +58,7 @@ async def root():
     """Root endpoint - API info."""
     return {
         "name": "NazovHybrid Investment Platform",
-        "version": "6.5.0",
+        "version": "8.0.0",
         "status": "operational",
         "docs": "/docs"
     }

@@ -94,6 +94,9 @@ class ScreenerFilters:
     min_upside: Optional[float] = None
     min_score: Optional[int] = 0
     min_revenue_growth: Optional[float] = None
+    min_earnings_growth: Optional[float] = None
+    min_dividend_yield: Optional[float] = None
+    max_debt_to_equity: Optional[float] = None
     sectors: Optional[List[str]] = None
 
 

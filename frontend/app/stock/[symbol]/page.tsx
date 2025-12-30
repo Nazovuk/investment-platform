@@ -337,6 +337,59 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             <MetricCard label="Dividend" value={detail.dividend_yield > 0 ? `${fmt(detail.dividend_yield)}%` : '—'} />
                         </div>
 
+                        {/* Fair Value Card */}
+                        {(() => {
+                            // Calculate Fair Value based on EPS and sector P/E
+                            const sectorPE: Record<string, number> = {
+                                'Technology': 28, 'Healthcare': 22, 'Financial Services': 14,
+                                'Consumer Cyclical': 20, 'Consumer Defensive': 24, 'Energy': 12,
+                                'Industrials': 18, 'Communication Services': 20, 'Real Estate': 16,
+                            };
+                            const avgPE = sectorPE[detail.sector] || 20;
+                            const fairValueEPS = detail.eps > 0 ? detail.eps * avgPE : 0;
+                            const fairValueTarget = detail.target_mean || 0;
+                            const fairValue = fairValueEPS > 0 ? (fairValueEPS + fairValueTarget) / 2 : fairValueTarget;
+                            const premium = detail.current_price && fairValue > 0
+                                ? ((detail.current_price - fairValue) / fairValue) * 100
+                                : 0;
+                            const isUndervalued = premium < -5;
+                            const isOvervalued = premium > 10;
+
+                            return fairValue > 0 ? (
+                                <Card style={{ marginBottom: '24px', background: isUndervalued ? 'rgba(16,185,129,0.1)' : isOvervalued ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)', border: `1px solid ${isUndervalued ? '#10b981' : isOvervalued ? '#ef4444' : '#6366f1'}` }}>
+                                    <h3 style={{ color: 'white', fontWeight: '600', marginBottom: '16px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        💎 Fair Value Analysis
+                                        <span style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '6px', background: isUndervalued ? '#10b981' : isOvervalued ? '#ef4444' : '#6366f1', color: 'white' }}>
+                                            {isUndervalued ? 'UNDERVALUED' : isOvervalued ? 'OVERVALUED' : 'FAIR'}
+                                        </span>
+                                    </h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Current Price</div>
+                                            <div style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>${fmt(detail.current_price)}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Fair Value</div>
+                                            <div style={{ fontSize: '20px', fontWeight: '700', color: '#a855f7' }}>${fmt(fairValue)}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Premium/Discount</div>
+                                            <div style={{ fontSize: '20px', fontWeight: '700', color: premium < 0 ? '#10b981' : '#ef4444' }}>
+                                                {premium >= 0 ? '+' : ''}{fmt(premium)}%
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Method</div>
+                                            <div style={{ fontSize: '14px', color: '#d1d5db' }}>EPS × Sector P/E + Analyst</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', fontSize: '13px', color: '#9ca3af' }}>
+                                        📊 <strong>Calculation:</strong> Fair Value = (EPS ${fmt(detail.eps)} × Sector P/E {avgPE}) + Analyst Target ${fmt(fairValueTarget)} / 2 = <strong>${fmt(fairValue)}</strong>
+                                    </div>
+                                </Card>
+                            ) : null;
+                        })()}
+
                         {/* 52 Week Range Card */}
                         <Card style={{ marginBottom: '24px' }}>
                             <h3 style={{ color: 'white', fontWeight: '600', marginBottom: '16px', fontSize: '16px' }}>

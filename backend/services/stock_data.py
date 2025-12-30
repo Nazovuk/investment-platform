@@ -388,6 +388,88 @@ class StockDataService:
                 results.append(data)
         return results
     
+    def get_historical_data(self, symbol: str, period: str = "1y") -> "pd.DataFrame":
+        """
+        Get historical price data for a symbol.
+        Uses Finnhub candles API or generates simulated data if unavailable.
+        """
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime, timedelta
+        
+        # Calculate date range
+        period_days = {
+            "1m": 30, "3m": 90, "6m": 180, 
+            "1y": 365, "2y": 730, "5y": 1825
+        }
+        days = period_days.get(period, 365)
+        
+        end_time = int(datetime.now().timestamp())
+        start_time = int((datetime.now() - timedelta(days=days)).timestamp())
+        
+        try:
+            # Try Finnhub candles API
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(
+                    f"{FINNHUB_BASE_URL}/stock/candle",
+                    params={
+                        "symbol": symbol,
+                        "resolution": "D",  # Daily
+                        "from": start_time,
+                        "to": end_time,
+                        "token": FINNHUB_API_KEY
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("s") == "ok" and data.get("c"):
+                        dates = pd.to_datetime(data["t"], unit="s")
+                        df = pd.DataFrame({
+                            "Open": data["o"],
+                            "High": data["h"],
+                            "Low": data["l"],
+                            "Close": data["c"],
+                            "Volume": data["v"]
+                        }, index=dates)
+                        return df
+        except Exception as e:
+            logger.warning(f"Failed to fetch Finnhub candles for {symbol}: {e}")
+        
+        # Fallback: Generate simulated historical data based on current price
+        logger.info(f"Generating simulated historical data for {symbol}")
+        
+        # Get current price as reference
+        stock_info = self.get_stock_info(symbol)
+        current_price = stock_info.get("current_price", 100)
+        
+        if current_price <= 0:
+            current_price = 100
+        
+        # Generate dates
+        dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+        
+        # Generate random walk with drift
+        np.random.seed(hash(symbol) % 2**32)  # Consistent per symbol
+        daily_returns = np.random.normal(0.0003, 0.015, days)  # slight positive drift, 1.5% daily vol
+        
+        # Work backwards from current price
+        prices = np.zeros(days)
+        prices[-1] = current_price
+        for i in range(days - 2, -1, -1):
+            prices[i] = prices[i + 1] / (1 + daily_returns[i + 1])
+        
+        # Add some noise for OHLC
+        df = pd.DataFrame({
+            "Open": prices * (1 + np.random.normal(0, 0.003, days)),
+            "High": prices * (1 + np.abs(np.random.normal(0, 0.01, days))),
+            "Low": prices * (1 - np.abs(np.random.normal(0, 0.01, days))),
+            "Close": prices,
+            "Volume": np.random.randint(1000000, 50000000, days)
+        }, index=dates)
+        
+        return df
+    
     def get_universe(self) -> List[str]:
         """Get the default stock universe."""
         return DEFAULT_UNIVERSE.copy()

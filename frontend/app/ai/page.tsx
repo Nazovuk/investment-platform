@@ -214,9 +214,17 @@ export default function AIPage() {
                                         #{idx + 1}
                                     </span>
                                     <div>
-                                        <div className="font-bold" style={{ color: 'var(--accent-primary)' }}>
-                                            {rec.symbol}
-                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const w = 1200, h = 800;
+                                                const left = (window.screen.width - w) / 2;
+                                                const top = (window.screen.height - h) / 2;
+                                                window.open(`/stock/${rec.symbol}`, `stock_${rec.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                            }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0, fontSize: '1rem' }}
+                                        >
+                                            {rec.symbol} ↗
+                                        </button>
                                         <div className="text-sm text-muted">{rec.name}</div>
                                     </div>
                                 </div>

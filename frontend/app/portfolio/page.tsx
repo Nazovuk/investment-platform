@@ -54,6 +54,29 @@ export default function PortfolioPage() {
         price: '',
     });
     const [submitting, setSubmitting] = useState(false);
+    const [fetchingPrice, setFetchingPrice] = useState(false);
+
+    // Auto-fetch price when symbol changes
+    const handleSymbolChange = async (symbol: string) => {
+        setFormData(prev => ({ ...prev, symbol: symbol.toUpperCase() }));
+
+        if (symbol.length >= 1) {
+            setFetchingPrice(true);
+            try {
+                const res = await fetch(`${API_URL}/api/stock/${symbol.toUpperCase()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.current_price) {
+                        setFormData(prev => ({ ...prev, price: data.current_price.toFixed(2) }));
+                    }
+                }
+            } catch (e) {
+                // Ignore errors, user can enter price manually
+            } finally {
+                setFetchingPrice(false);
+            }
+        }
+    };
 
     const fetchPortfolio = useCallback(async () => {
         try {
@@ -202,15 +225,17 @@ export default function PortfolioPage() {
                                 <input
                                     type="text"
                                     value={formData.symbol}
-                                    onChange={e => setFormData({ ...formData, symbol: e.target.value })}
+                                    onChange={e => handleSymbolChange(e.target.value)}
+                                    onBlur={e => handleSymbolChange(e.target.value)}
                                     placeholder="AAPL, MSFT..."
                                     style={{
                                         width: '100%', padding: '10px 12px', borderRadius: '8px',
                                         backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)',
-                                        color: 'white', fontSize: '14px'
+                                        color: 'white', fontSize: '14px', textTransform: 'uppercase'
                                     }}
                                     required
                                 />
+                                {fetchingPrice && <span style={{ color: '#9ca3af', fontSize: '12px' }}>Loading price...</span>}
                             </div>
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', color: '#9ca3af', fontSize: '14px', marginBottom: '6px' }}>Type</label>

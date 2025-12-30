@@ -40,10 +40,20 @@ const mockAlerts = [
 ];
 
 const alertTypes = [
-    { id: 'price_above', name: 'Price Above', icon: '📈' },
-    { id: 'price_below', name: 'Price Below', icon: '📉' },
-    { id: 'fair_value_reached', name: 'Fair Value', icon: '🎯' },
-    { id: 'score_threshold', name: 'AI Score', icon: '🤖' },
+    // Price Alerts
+    { id: 'price_above', name: 'Price Above', icon: '📈', category: 'price' },
+    { id: 'price_below', name: 'Price Below', icon: '📉', category: 'price' },
+    { id: 'fair_value_reached', name: 'Fair Value', icon: '🎯', category: 'price' },
+    { id: 'score_threshold', name: 'AI Score', icon: '🤖', category: 'price' },
+    // Technical Alerts
+    { id: 'golden_cross', name: 'Golden Cross', icon: '🌟', category: 'technical', description: 'SMA50 crosses above SMA200' },
+    { id: 'death_cross', name: 'Death Cross', icon: '⚠️', category: 'technical', description: 'SMA50 crosses below SMA200' },
+    { id: 'above_sma50', name: 'Above SMA50', icon: '📊', category: 'technical', description: 'Price above 50-day MA' },
+    { id: 'below_sma50', name: 'Below SMA50', icon: '📉', category: 'technical', description: 'Price below 50-day MA' },
+    { id: 'above_sma200', name: 'Above SMA200', icon: '📈', category: 'technical', description: 'Price above 200-day MA' },
+    { id: 'below_sma200', name: 'Below SMA200', icon: '📉', category: 'technical', description: 'Price below 200-day MA' },
+    { id: 'rsi_oversold', name: 'RSI Oversold', icon: '🔻', category: 'technical', description: 'RSI drops below 30' },
+    { id: 'rsi_overbought', name: 'RSI Overbought', icon: '🔺', category: 'technical', description: 'RSI rises above 70' },
 ];
 
 export default function AlertsPage() {
@@ -236,13 +246,28 @@ export default function AlertsPage() {
                             </div>
 
                             <div className="filter-group">
-                                <label className="filter-label">Alert Type</label>
-                                <div className="flex gap-sm flex-wrap">
-                                    {alertTypes.map(type => (
+                                <label className="filter-label">Price Alerts</label>
+                                <div className="flex gap-sm flex-wrap" style={{ marginBottom: '12px' }}>
+                                    {alertTypes.filter(t => t.category === 'price').map(type => (
                                         <button
                                             key={type.id}
                                             className={`btn ${newAlert.alert_type === type.id ? 'btn-primary' : 'btn-secondary'}`}
                                             onClick={() => setNewAlert({ ...newAlert, alert_type: type.id })}
+                                            style={{ fontSize: '12px', padding: '6px 12px' }}
+                                        >
+                                            {type.icon} {type.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                <label className="filter-label">Technical Alerts</label>
+                                <div className="flex gap-sm flex-wrap">
+                                    {alertTypes.filter(t => t.category === 'technical').map(type => (
+                                        <button
+                                            key={type.id}
+                                            className={`btn ${newAlert.alert_type === type.id ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setNewAlert({ ...newAlert, alert_type: type.id })}
+                                            style={{ fontSize: '12px', padding: '6px 12px' }}
+                                            title={(type as any).description || ''}
                                         >
                                             {type.icon} {type.name}
                                         </button>
@@ -250,16 +275,18 @@ export default function AlertsPage() {
                                 </div>
                             </div>
 
-                            <div className="filter-group">
-                                <label className="filter-label">Target Price</label>
-                                <input
-                                    type="number"
-                                    className="input"
-                                    placeholder="150.00"
-                                    value={newAlert.target_value || ''}
-                                    onChange={(e) => setNewAlert({ ...newAlert, target_value: Number(e.target.value) })}
-                                />
-                            </div>
+                            {alertTypes.find(t => t.id === newAlert.alert_type)?.category === 'price' && (
+                                <div className="filter-group">
+                                    <label className="filter-label">Target Price</label>
+                                    <input
+                                        type="number"
+                                        className="input"
+                                        placeholder="150.00"
+                                        value={newAlert.target_value || ''}
+                                        onChange={(e) => setNewAlert({ ...newAlert, target_value: Number(e.target.value) })}
+                                    />
+                                </div>
+                            )}
 
                             <div className="filter-group">
                                 <label className="filter-label">Email for Notification</label>

@@ -248,9 +248,17 @@ export default function DashboardPage() {
                                     return (
                                         <tr key={holding.symbol}>
                                             <td>
-                                                <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>
-                                                    {holding.symbol}
-                                                </span>
+                                                <button
+                                                    onClick={() => {
+                                                        const w = 1200, h = 800;
+                                                        const left = (window.screen.width - w) / 2;
+                                                        const top = (window.screen.height - h) / 2;
+                                                        window.open(`/stock/${holding.symbol}`, `stock_${holding.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                                    }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0 }}
+                                                >
+                                                    {holding.symbol} ↗
+                                                </button>
                                             </td>
                                             <td className="text-right font-mono">{holding.shares}</td>
                                             <td className="text-right font-mono">
@@ -285,7 +293,17 @@ export default function DashboardPage() {
                         {topPicks.slice(0, 5).map((stock, idx) => (
                             <div key={stock.symbol} className="glass-card" style={{ padding: 'var(--spacing-md)' }}>
                                 <div className="flex items-center justify-between mb-sm">
-                                    <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>{stock.symbol}</span>
+                                    <button
+                                        onClick={() => {
+                                            const w = 1200, h = 800;
+                                            const left = (window.screen.width - w) / 2;
+                                            const top = (window.screen.height - h) / 2;
+                                            window.open(`/stock/${stock.symbol}`, `stock_${stock.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                        }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0 }}
+                                    >
+                                        {stock.symbol} ↗
+                                    </button>
                                     <span className="badge">#{idx + 1}</span>
                                 </div>
                                 <div className="text-sm text-muted mb-sm truncate">{stock.name}</div>

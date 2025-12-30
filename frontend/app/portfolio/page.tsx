@@ -374,12 +374,17 @@ export default function PortfolioPage() {
                                                 <tr key={pos.symbol}>
                                                     <td>
                                                         <button
-                                                            onClick={() => window.open(`/stock/${pos.symbol}`, '_blank', 'noopener,noreferrer')}
+                                                            onClick={() => {
+                                                                const w = 1200, h = 800;
+                                                                const left = (window.screen.width - w) / 2;
+                                                                const top = (window.screen.height - h) / 2;
+                                                                window.open(`/stock/${pos.symbol}`, `stock_${pos.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                                            }}
                                                             style={{
                                                                 background: 'none', border: 'none', cursor: 'pointer',
                                                                 color: '#a855f7', fontWeight: 'bold', padding: 0
                                                             }}
-                                                            title={`Open ${pos.symbol} details in new tab`}
+                                                            title={`Open ${pos.symbol} details`}
                                                         >
                                                             {pos.symbol} ↗
                                                         </button>

@@ -78,8 +78,16 @@ export default function ScreenerPage() {
     };
 
     const handleStockClick = (symbol: string) => {
-        // Open in new tab so user doesn't lose their place
-        window.open(`/stock/${symbol}`, '_blank', 'noopener,noreferrer');
+        // Open in popup window - resizable, smaller than main page
+        const width = 1200;
+        const height = 800;
+        const left = (window.screen.width - width) / 2;
+        const top = (window.screen.height - height) / 2;
+        window.open(
+            `/stock/${symbol}`,
+            `stock_${symbol}`,
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
     };
 
     const filteredAndSortedStocks = useMemo(() => {

@@ -178,12 +178,72 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             <p style={{ color: '#9ca3af', fontSize: '14px', margin: 0 }}>{detail.name}</p>
                         </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'white' }}>${fmt(detail.current_price)}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', color: detail.change_percent >= 0 ? '#10b981' : '#ef4444' }}>
-                            {detail.change_percent >= 0 ? <ArrowUpRight style={{ width: '16px', height: '16px' }} /> : <ArrowDownRight style={{ width: '16px', height: '16px' }} />}
-                            <span style={{ fontWeight: '500' }}>{detail.change_percent >= 0 ? '+' : ''}{fmt(detail.change_percent)}%</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                        <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'white' }}>${fmt(detail.current_price)}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', color: detail.change_percent >= 0 ? '#10b981' : '#ef4444' }}>
+                                {detail.change_percent >= 0 ? <ArrowUpRight style={{ width: '16px', height: '16px' }} /> : <ArrowDownRight style={{ width: '16px', height: '16px' }} />}
+                                <span style={{ fontWeight: '500' }}>{detail.change_percent >= 0 ? '+' : ''}{fmt(detail.change_percent)}%</span>
+                            </div>
                         </div>
+                        <button
+                            onClick={() => {
+                                const price = detail.current_price;
+                                const shares = prompt(`How many shares of ${symbol} @ $${price}?`, '10');
+                                if (shares && parseFloat(shares) > 0) {
+                                    fetch(`${API_URL}/api/portfolio`)
+                                        .then(r => r.json())
+                                        .then(async data => {
+                                            let portfolioId = 1;
+                                            if (data.portfolios?.length > 0) {
+                                                portfolioId = data.portfolios[0].id;
+                                            } else {
+                                                const createRes = await fetch(`${API_URL}/api/portfolio`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ name: 'My Portfolio', currency: 'USD' })
+                                                });
+                                                const newP = await createRes.json();
+                                                portfolioId = newP.portfolio.id;
+                                            }
+                                            return fetch(`${API_URL}/api/portfolio/${portfolioId}/transactions`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    symbol: symbol,
+                                                    transaction_type: 'buy',
+                                                    shares: parseFloat(shares),
+                                                    price: price,
+                                                    currency: 'USD'
+                                                })
+                                            });
+                                        })
+                                        .then(r => {
+                                            if (r.ok) {
+                                                alert(`✅ Added ${shares} shares of ${symbol} to portfolio!`);
+                                            } else {
+                                                alert('Failed to add to portfolio');
+                                            }
+                                        })
+                                        .catch(() => alert('Error adding to portfolio'));
+                                }
+                            }}
+                            style={{
+                                padding: '10px 20px',
+                                borderRadius: '10px',
+                                background: '#10b981',
+                                border: 'none',
+                                color: 'white',
+                                fontWeight: '600',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                        >
+                            + Add to Portfolio
+                        </button>
                     </div>
                 </div>
             </header>

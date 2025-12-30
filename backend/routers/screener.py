@@ -1,12 +1,12 @@
 """
-Screener API router.
+Screener API router - Async version for fast concurrent data fetching.
 """
 
 from fastapi import APIRouter, Query
 from typing import Optional, List
 from pydantic import BaseModel
 
-from services.screener import screener_service, ScreenerFilters
+from services.screener import screen_stocks, fetch_all_stocks, ScreenerFilters, DEFAULT_UNIVERSE
 
 
 router = APIRouter()
@@ -16,19 +16,10 @@ class ScreenerRequest(BaseModel):
     """Request body for custom screening."""
     max_pe: Optional[float] = 100
     max_peg: Optional[float] = 5.0
-    max_price_to_book: Optional[float] = None
     min_revenue_growth: Optional[float] = None
-    min_earnings_growth: Optional[float] = None
     min_upside: Optional[float] = None
     min_score: Optional[int] = 0
-    min_profit_margin: Optional[float] = None
-    min_roe: Optional[float] = None
-    min_dividend_yield: Optional[float] = None
-    max_beta: Optional[float] = None
-    max_debt_to_equity: Optional[float] = None
     sectors: Optional[List[str]] = None
-    exclude_sectors: Optional[List[str]] = None
-    symbols: Optional[List[str]] = None
 
 
 @router.get("/")
@@ -41,7 +32,7 @@ async def get_screener_results(
 ):
     """
     Get screened stocks based on filters.
-    Uses default filter values if not specified.
+    Uses async concurrent requests for fast response.
     """
     filters = ScreenerFilters(
         max_pe=max_pe,
@@ -51,7 +42,7 @@ async def get_screener_results(
         min_score=min_score
     )
     
-    results = screener_service.screen(filters)
+    results = await screen_stocks(filters)
     
     return {
         "count": len(results),
@@ -74,21 +65,13 @@ async def custom_screen(request: ScreenerRequest):
     filters = ScreenerFilters(
         max_pe=request.max_pe,
         max_peg=request.max_peg,
-        max_price_to_book=request.max_price_to_book,
         min_revenue_growth=request.min_revenue_growth,
-        min_earnings_growth=request.min_earnings_growth,
         min_upside=request.min_upside,
         min_score=request.min_score,
-        min_profit_margin=request.min_profit_margin,
-        min_roe=request.min_roe,
-        min_dividend_yield=request.min_dividend_yield,
-        max_beta=request.max_beta,
-        max_debt_to_equity=request.max_debt_to_equity,
-        sectors=request.sectors,
-        exclude_sectors=request.exclude_sectors
+        sectors=request.sectors
     )
     
-    results = screener_service.screen(filters, symbols=request.symbols)
+    results = await screen_stocks(filters)
     
     return {
         "count": len(results),
@@ -99,26 +82,13 @@ async def custom_screen(request: ScreenerRequest):
 @router.get("/top-picks")
 async def get_top_picks(count: int = Query(10, ge=1, le=50)):
     """Get top investment picks based on quality filters."""
-    results = screener_service.get_top_picks(count)
+    all_stocks = await fetch_all_stocks(DEFAULT_UNIVERSE)
+    sorted_stocks = sorted(all_stocks, key=lambda x: x.get("score", 0), reverse=True)
+    results = sorted_stocks[:count]
     return {"count": len(results), "results": results}
 
 
-@router.get("/value")
-async def get_value_picks():
-    """Get value stocks (low P/E, high upside)."""
-    results = screener_service.get_value_picks()
-    return {"count": len(results), "results": results}
-
-
-@router.get("/growth")
-async def get_growth_picks():
-    """Get growth stocks (high revenue growth)."""
-    results = screener_service.get_growth_picks()
-    return {"count": len(results), "results": results}
-
-
-@router.get("/dividend")
-async def get_dividend_picks():
-    """Get dividend stocks."""
-    results = screener_service.get_dividend_picks()
-    return {"count": len(results), "results": results}
+@router.get("/universe")
+async def get_universe():
+    """Get all available stocks in the universe."""
+    return {"symbols": DEFAULT_UNIVERSE, "count": len(DEFAULT_UNIVERSE)}

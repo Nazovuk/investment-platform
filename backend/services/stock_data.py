@@ -446,8 +446,9 @@ class StockDataService:
         if current_price <= 0:
             current_price = 100
         
-        # Generate dates
-        dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+        # Generate dates - use date only (no time component) for alignment
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        dates = pd.date_range(end=end_date, periods=days, freq='D')
         
         # Generate random walk with drift
         np.random.seed(hash(symbol) % 2**32)  # Consistent per symbol

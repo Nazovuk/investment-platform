@@ -351,11 +351,24 @@ async def fetch_stock_quote(client: httpx.AsyncClient, symbol: str) -> Optional[
 async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
     """Fetch all stocks using yfinance batch download - much faster and no rate limits."""
     import yfinance as yf
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def _download_batch(tickers_str: str):
+        """Sync function to download stock data."""
+        return yf.download(tickers_str, period="2d", group_by='ticker', progress=False, threads=True)
     
     try:
         # Use yfinance download for batch fetching (single API call for all stocks)
         tickers_str = " ".join(symbols)
-        data = yf.download(tickers_str, period="2d", group_by='ticker', progress=False, threads=True)
+        
+        # Run sync yf.download in thread pool to avoid blocking async event loop
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            data = await loop.run_in_executor(executor, _download_batch, tickers_str)
+        
+        if data is None or data.empty:
+            logger.warning("yfinance returned empty data")
+            return []
         
         stocks = []
         for symbol in symbols:
@@ -416,6 +429,8 @@ async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.error(f"Batch fetch failed: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 

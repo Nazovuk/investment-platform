@@ -714,6 +714,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             📊 Financial Statements - {symbol}
                         </h2>
 
+                        {/* Income Statement */}
                         {financials.income_statement.length > 0 && (
                             <div style={{ marginBottom: '32px' }}>
                                 <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>Income Statement (Annual)</h3>
@@ -721,23 +722,36 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                     <table className="data-table" style={{ width: '100%' }}>
                                         <thead>
                                             <tr>
-                                                <th>Period</th>
-                                                <th className="text-right">Revenue</th>
-                                                <th className="text-right">Gross Profit</th>
-                                                <th className="text-right">Operating Income</th>
-                                                <th className="text-right">Net Income</th>
+                                                <th style={{ textAlign: 'left', minWidth: '180px' }}>Breakdown</th>
+                                                {financials.income_statement.map((row: { period: string }, idx: number) => (
+                                                    <th key={idx} className="text-right">{row.period}</th>
+                                                ))}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {financials.income_statement.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td>{row.period}</td>
-                                                    <td className="text-right font-mono">{fmtMoney(row.total_revenue)}</td>
-                                                    <td className="text-right font-mono">{fmtMoney(row.gross_profit)}</td>
-                                                    <td className="text-right font-mono">{fmtMoney(row.operating_income)}</td>
-                                                    <td className="text-right font-mono" style={{
-                                                        color: (row.net_income || 0) >= 0 ? '#10b981' : '#ef4444'
-                                                    }}>{fmtMoney(row.net_income)}</td>
+                                            {[
+                                                { key: 'total_revenue', label: 'Total Revenue' },
+                                                { key: 'cost_of_revenue', label: 'Cost of Revenue' },
+                                                { key: 'gross_profit', label: 'Gross Profit' },
+                                                { key: 'operating_expense', label: 'Operating Expense' },
+                                                { key: 'operating_income', label: 'Operating Income' },
+                                                { key: 'interest_expense', label: 'Interest Expense' },
+                                                { key: 'pretax_income', label: 'Pretax Income' },
+                                                { key: 'tax_provision', label: 'Tax Provision' },
+                                                { key: 'net_income', label: 'Net Income' },
+                                                { key: 'ebitda', label: 'EBITDA' },
+                                            ].map(({ key, label }) => (
+                                                <tr key={key}>
+                                                    <td style={{ fontWeight: key === 'ebitda' ? '600' : '400', color: key === 'ebitda' ? '#a855f7' : '#d1d5db' }}>{label}</td>
+                                                    {financials.income_statement.map((row: Record<string, number | null | string>, idx: number) => (
+                                                        <td key={idx} className="text-right font-mono" style={{
+                                                            color: typeof row[key] === 'number' && row[key] !== null
+                                                                ? (row[key] as number) >= 0 ? '#10b981' : '#ef4444'
+                                                                : '#9ca3af'
+                                                        }}>
+                                                            {fmtMoney(row[key] as number | null | undefined)}
+                                                        </td>
+                                                    ))}
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -746,6 +760,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             </div>
                         )}
 
+                        {/* Cash Flow Statement */}
                         {financials.cash_flow.length > 0 && (
                             <div>
                                 <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>Cash Flow Statement</h3>
@@ -753,23 +768,36 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                     <table className="data-table" style={{ width: '100%' }}>
                                         <thead>
                                             <tr>
-                                                <th>Period</th>
-                                                <th className="text-right">Operating Cash Flow</th>
-                                                <th className="text-right">Free Cash Flow</th>
-                                                <th className="text-right">CapEx</th>
+                                                <th style={{ textAlign: 'left', minWidth: '200px' }}>Breakdown</th>
+                                                {financials.cash_flow.map((row: { period: string }, idx: number) => (
+                                                    <th key={idx} className="text-right">{row.period}</th>
+                                                ))}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {financials.cash_flow.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td>{row.period}</td>
-                                                    <td className="text-right font-mono" style={{
-                                                        color: (row.operating_cash_flow || 0) >= 0 ? '#10b981' : '#ef4444'
-                                                    }}>{fmtMoney(row.operating_cash_flow)}</td>
-                                                    <td className="text-right font-mono" style={{
-                                                        color: (row.free_cash_flow || 0) >= 0 ? '#10b981' : '#ef4444'
-                                                    }}>{fmtMoney(row.free_cash_flow)}</td>
-                                                    <td className="text-right font-mono">{fmtMoney(row.capital_expenditure)}</td>
+                                            {[
+                                                { key: 'operating_cash_flow', label: 'Operating Cash Flow' },
+                                                { key: 'investing_cash_flow', label: 'Investing Cash Flow' },
+                                                { key: 'financing_cash_flow', label: 'Financing Cash Flow' },
+                                                { key: 'end_cash_position', label: 'End Cash Position' },
+                                                { key: 'capital_expenditure', label: 'Capital Expenditure' },
+                                                { key: 'issuance_of_capital_stock', label: 'Issuance of Capital Stock' },
+                                                { key: 'issuance_of_debt', label: 'Issuance of Debt' },
+                                                { key: 'repayment_of_debt', label: 'Repayment of Debt' },
+                                                { key: 'repurchase_of_capital_stock', label: 'Repurchase of Capital Stock' },
+                                                { key: 'free_cash_flow', label: 'Free Cash Flow' },
+                                            ].map(({ key, label }) => (
+                                                <tr key={key}>
+                                                    <td style={{ fontWeight: key === 'free_cash_flow' ? '600' : '400', color: key === 'free_cash_flow' ? '#a855f7' : '#d1d5db' }}>{label}</td>
+                                                    {financials.cash_flow.map((row: Record<string, number | null | string>, idx: number) => (
+                                                        <td key={idx} className="text-right font-mono" style={{
+                                                            color: typeof row[key] === 'number' && row[key] !== null
+                                                                ? (row[key] as number) >= 0 ? '#10b981' : '#ef4444'
+                                                                : '#9ca3af'
+                                                        }}>
+                                                            {fmtMoney(row[key] as number | null | undefined)}
+                                                        </td>
+                                                    ))}
                                                 </tr>
                                             ))}
                                         </tbody>

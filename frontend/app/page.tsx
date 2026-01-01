@@ -184,18 +184,22 @@ export default function DashboardPage() {
                 </div>
             </header>
 
-            {/* Market Ticker Bar */}
+            {/* Market Ticker Bar - Sticky */}
             {(indices.length > 0 || currencies.length > 0) && (
                 <div className="mb-lg" style={{
                     display: 'flex',
                     gap: '12px',
                     padding: '12px 16px',
-                    background: 'rgba(99, 102, 241, 0.08)',
+                    background: 'rgba(15, 15, 25, 0.95)',
                     borderRadius: '12px',
                     border: '1px solid rgba(99, 102, 241, 0.15)',
                     overflowX: 'auto',
                     flexWrap: 'wrap',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    position: 'sticky',
+                    top: '0',
+                    zIndex: 50,
+                    backdropFilter: 'blur(12px)',
                 }}>
                     {/* Indices */}
                     {indices.map((idx) => (
@@ -268,7 +272,7 @@ export default function DashboardPage() {
                                 <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '500' }}>{curr.code}/USD</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'white' }}>
-                                        ${curr.rate.toFixed(4)}
+                                        {curr.code === 'BTC' ? `$${curr.rate.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `$${curr.rate.toFixed(2)}`}
                                     </span>
                                     <span style={{
                                         fontSize: '12px',

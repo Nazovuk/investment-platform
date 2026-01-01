@@ -357,32 +357,64 @@ async def get_stock_earnings(symbol: str):
 
 @router.get("/{symbol}/financials")
 async def get_stock_financials(symbol: str):
-    """Get income statement and cash flow data."""
+    """Get detailed income statement and cash flow data."""
     try:
         ticker = yf.Ticker(symbol.upper())
         
-        # Get income statement
+        # Get income statement - more detailed metrics
         income_stmt = ticker.income_stmt
         income_data = []
+        income_rows = [
+            ("Total Revenue", "total_revenue"),
+            ("Cost Of Revenue", "cost_of_revenue"),
+            ("Gross Profit", "gross_profit"),
+            ("Operating Expense", "operating_expense"),
+            ("Operating Income", "operating_income"),
+            ("Interest Expense", "interest_expense"),
+            ("Pretax Income", "pretax_income"),
+            ("Tax Provision", "tax_provision"),
+            ("Net Income", "net_income"),
+            ("EBITDA", "ebitda"),
+        ]
+        
         if income_stmt is not None and not income_stmt.empty:
-            for col in income_stmt.columns[:4]:  # Last 4 periods
-                data = {"period": str(col.date()) if hasattr(col, 'date') else str(col)}
-                for row_name in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income", "EBITDA"]:
+            for col in income_stmt.columns[:5]:  # Last 5 periods
+                period = str(col.date()) if hasattr(col, 'date') else str(col)[:10]
+                data = {"period": period}
+                for row_name, key in income_rows:
                     if row_name in income_stmt.index:
                         val = income_stmt.loc[row_name, col]
-                        data[row_name.lower().replace(" ", "_")] = float(val) if pd.notna(val) else None
+                        data[key] = float(val) if pd.notna(val) else None
+                    else:
+                        data[key] = None
                 income_data.append(data)
         
-        # Get cash flow
+        # Get cash flow - detailed breakdown
         cash_flow = ticker.cashflow
         cashflow_data = []
+        cashflow_rows = [
+            ("Operating Cash Flow", "operating_cash_flow"),
+            ("Investing Cash Flow", "investing_cash_flow"),
+            ("Financing Cash Flow", "financing_cash_flow"),
+            ("End Cash Position", "end_cash_position"),
+            ("Capital Expenditure", "capital_expenditure"),
+            ("Issuance Of Capital Stock", "issuance_of_capital_stock"),
+            ("Issuance Of Debt", "issuance_of_debt"),
+            ("Repayment Of Debt", "repayment_of_debt"),
+            ("Repurchase Of Capital Stock", "repurchase_of_capital_stock"),
+            ("Free Cash Flow", "free_cash_flow"),
+        ]
+        
         if cash_flow is not None and not cash_flow.empty:
-            for col in cash_flow.columns[:4]:  # Last 4 periods
-                data = {"period": str(col.date()) if hasattr(col, 'date') else str(col)}
-                for row_name in ["Operating Cash Flow", "Free Cash Flow", "Capital Expenditure"]:
+            for col in cash_flow.columns[:5]:  # Last 5 periods
+                period = str(col.date()) if hasattr(col, 'date') else str(col)[:10]
+                data = {"period": period}
+                for row_name, key in cashflow_rows:
                     if row_name in cash_flow.index:
                         val = cash_flow.loc[row_name, col]
-                        data[row_name.lower().replace(" ", "_")] = float(val) if pd.notna(val) else None
+                        data[key] = float(val) if pd.notna(val) else None
+                    else:
+                        data[key] = None
                 cashflow_data.append(data)
         
         return {

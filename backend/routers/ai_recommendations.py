@@ -38,10 +38,10 @@ async def get_recommendations(
         investment_style = InvestmentStyle.BALANCED
     
     try:
-        # Call async function directly
-        recommendations = await get_ai_recommendations(
-            style=investment_style,
-            count=count,
+        # Call async function directly with correct parameter name
+        result = await get_ai_recommendations(
+            style=investment_style.value,  # Pass string value
+            limit=count,  # Use 'limit' parameter name
             risk_tolerance=risk_tolerance
         )
         
@@ -49,10 +49,12 @@ async def get_recommendations(
             "success": True,
             "style": style,
             "risk_tolerance": risk_tolerance,
-            "count": len(recommendations),
-            "recommendations": [asdict(r) for r in recommendations]
+            "count": len(result.get("recommendations", [])),
+            "recommendations": result.get("recommendations", [])  # Already a list of dicts
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "error": str(e),

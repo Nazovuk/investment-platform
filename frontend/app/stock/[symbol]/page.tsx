@@ -313,7 +313,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
             {/* Content */}
             <main style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 24px 48px' }}>
-                {activeView === 'chart' ? (
+                {activeView === 'chart' && (
                     <div>
                         {/* Period Selector */}
                         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
@@ -375,7 +375,9 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             )}
                         </Card>
                     </div>
-                ) : (
+                )}
+
+                {activeView === 'fundamentals' && (
                     <div>
                         {/* Key Metrics Grid */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '24px' }}>

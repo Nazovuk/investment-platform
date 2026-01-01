@@ -177,44 +177,65 @@ async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
         ticker = yf.Ticker(symbol.upper())
         news = ticker.news or []
         
+        # Debug: log first news item structure
+        if news:
+            logger.info(f"News structure for {symbol}: {list(news[0].keys()) if news[0] else 'empty'}")
+        
         # Format news items
         formatted_news = []
         for item in news[:limit]:
-            # Handle different date field names
-            pub_time = item.get("providerPublishTime", 0)
-            if not pub_time:
-                pub_time = item.get("publishTime", 0)
-            if not pub_time:
-                pub_time = item.get("publish_time", 0)
+            # Log full item for debugging
+            logger.debug(f"News item: {item}")
             
-            # Get link - yfinance might use different field names
-            link = item.get("link", "")
-            if not link:
-                link = item.get("url", "")
-            if not link:
-                link = item.get("guid", "")
+            # Title - try multiple possible keys
+            title = item.get("title") or item.get("headline") or item.get("name") or "News Article"
             
-            # Get thumbnail
+            # Publisher
+            publisher = item.get("publisher") or item.get("source") or item.get("provider") or "Financial News"
+            
+            # Link - try multiple possible keys
+            link = item.get("link") or item.get("url") or item.get("guid") or item.get("canonical_url") or ""
+            
+            # Timestamp
+            pub_time = item.get("providerPublishTime") or item.get("publishTime") or item.get("publish_time") or item.get("published_at") or 0
+            if isinstance(pub_time, str):
+                try:
+                    from dateutil import parser
+                    pub_time = int(parser.parse(pub_time).timestamp())
+                except:
+                    pub_time = 0
+            
+            # Thumbnail
             thumbnail = ""
             if item.get("thumbnail"):
-                resolutions = item["thumbnail"].get("resolutions", [])
-                if resolutions:
-                    thumbnail = resolutions[0].get("url", "")
+                thumb = item["thumbnail"]
+                if isinstance(thumb, dict):
+                    resolutions = thumb.get("resolutions", [])
+                    if resolutions:
+                        thumbnail = resolutions[0].get("url", "")
+                elif isinstance(thumb, str):
+                    thumbnail = thumb
             
-            # Get summary/description
-            summary = item.get("summary", "")
-            if not summary:
-                summary = item.get("description", "")
-            if not summary:
-                # Use first 150 chars of title as fallback
-                summary = item.get("title", "")[:150]
+            # Summary
+            summary = item.get("summary") or item.get("description") or item.get("text") or ""
+            if not summary and title and title != "News Article":
+                summary = title
+            
+            # Format date
+            if pub_time > 0:
+                try:
+                    pub_date = datetime.fromtimestamp(pub_time).strftime("%b %d, %Y")
+                except:
+                    pub_date = "Recently"
+            else:
+                pub_date = "Recently"
             
             formatted_news.append({
-                "title": item.get("title", "No title"),
-                "publisher": item.get("publisher", "Unknown"),
+                "title": title,
+                "publisher": publisher,
                 "link": link,
                 "published": pub_time,
-                "published_date": datetime.fromtimestamp(pub_time).strftime("%Y-%m-%d %H:%M") if pub_time > 0 else "Recently",
+                "published_date": pub_date,
                 "thumbnail": thumbnail,
                 "summary": summary[:200] + "..." if len(summary) > 200 else summary,
                 "type": item.get("type", "article"),

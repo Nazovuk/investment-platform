@@ -83,32 +83,58 @@ async def fetch_forex(pair: str) -> Dict[str, Any]:
 
 @router.get("/indices")
 async def get_market_indices():
-    """Get major market indices."""
-    # Use ETFs as proxies for indices
-    index_symbols = {
-        "SPY": {"name": "S&P 500", "emoji": "📊"},
-        "QQQ": {"name": "NASDAQ 100", "emoji": "💻"},
-        "DIA": {"name": "Dow Jones", "emoji": "🏭"},
-        "IWM": {"name": "Russell 2000", "emoji": "📈"},
+    """Get major market indices using yfinance."""
+    import yfinance as yf
+    
+    # Real index symbols for yfinance
+    index_data = {
+        "^GSPC": {"name": "S&P 500", "emoji": "📊"},
+        "^IXIC": {"name": "NASDAQ", "emoji": "💻"},
+        "^DJI": {"name": "Dow Jones", "emoji": "🏭"},
+        "^FTSE": {"name": "FTSE 100", "emoji": "🇬🇧"},
+        "^VIX": {"name": "VIX", "emoji": "⚡"},
     }
     
-    # VIX needs special handling (CBOE)
-    vix_data = {"symbol": "VIX", "name": "VIX", "emoji": "⚡", "price": 18.5, "change": 0.3, "change_percent": 1.6}
-    
     results = []
-    for symbol, info in index_symbols.items():
-        quote = await fetch_quote(symbol)
-        results.append({
-            "symbol": symbol,
-            "name": info["name"],
-            "emoji": info["emoji"],
-            "price": quote["price"],
-            "change": quote["change"],
-            "change_percent": quote["change_percent"],
-        })
-    
-    # Add VIX (mock for now - requires different API)
-    results.append(vix_data)
+    for symbol, info in index_data.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="2d")
+            
+            if len(hist) >= 1:
+                current = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2] if len(hist) >= 2 else current
+                change = current - prev
+                change_pct = (change / prev * 100) if prev > 0 else 0
+                
+                results.append({
+                    "symbol": symbol,
+                    "name": info["name"],
+                    "emoji": info["emoji"],
+                    "price": round(current, 2),
+                    "change": round(change, 2),
+                    "change_percent": round(change_pct, 2),
+                })
+            else:
+                # Fallback if no data
+                results.append({
+                    "symbol": symbol,
+                    "name": info["name"],
+                    "emoji": info["emoji"],
+                    "price": 0,
+                    "change": 0,
+                    "change_percent": 0,
+                })
+        except Exception as e:
+            print(f"Error fetching {symbol}: {e}")
+            results.append({
+                "symbol": symbol,
+                "name": info["name"],
+                "emoji": info["emoji"],
+                "price": 0,
+                "change": 0,
+                "change_percent": 0,
+            })
     
     return {"indices": results}
 

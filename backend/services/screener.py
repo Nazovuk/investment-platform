@@ -356,89 +356,105 @@ async def fetch_stock_quote(client: httpx.AsyncClient, symbol: str) -> Optional[
 
 
 async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
-    """Fetch all stocks using yfinance batch download - much faster and no rate limits."""
+    """Fetch all stocks using yfinance in batches to reduce memory usage."""
     import yfinance as yf
     from concurrent.futures import ThreadPoolExecutor
+    import gc
+    
+    BATCH_SIZE = 30  # Download 30 stocks at a time to stay under 512MB
     
     def _download_batch(tickers_str: str):
         """Sync function to download stock data."""
-        return yf.download(tickers_str, period="2d", group_by='ticker', progress=False, threads=True)
+        try:
+            return yf.download(tickers_str, period="2d", group_by='ticker', progress=False, threads=False)
+        except Exception as e:
+            logger.error(f"Batch download failed: {e}")
+            return None
     
-    try:
-        # Use yfinance download for batch fetching (single API call for all stocks)
-        tickers_str = " ".join(symbols)
+    def _process_ticker_data(symbol: str, data, symbols_in_batch: List[str]) -> Optional[Dict[str, Any]]:
+        """Process single ticker data from batch result."""
+        try:
+            if len(symbols_in_batch) == 1:
+                ticker_data = data
+            else:
+                if symbol not in data.columns.get_level_values(0):
+                    return None
+                ticker_data = data[symbol]
+            
+            if ticker_data.empty or len(ticker_data) < 1:
+                return None
+            
+            current_price = float(ticker_data['Close'].iloc[-1])
+            prev_close = float(ticker_data['Close'].iloc[-2]) if len(ticker_data) >= 2 else current_price
+            
+            if current_price <= 0:
+                return None
+            
+            meta = _get_metadata(symbol)
+            change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
+            
+            pe_ratio = PE_RATIOS.get(symbol, 25.0)
+            peg_ratio = PEG_RATIOS.get(symbol, 2.0)
+            revenue_growth = REVENUE_GROWTH.get(symbol, 0.08)
+            fair_value = _calculate_fair_value(symbol, current_price)
+            upside = _calculate_upside(current_price, fair_value)
+            score = _calculate_score(symbol, current_price, prev_close)
+            
+            return {
+                "symbol": symbol,
+                "name": meta.get("name", symbol),
+                "sector": meta.get("sector", "Unknown"),
+                "industry": meta.get("industry", "Unknown"),
+                "current_price": round(current_price, 2),
+                "previous_close": round(prev_close, 2),
+                "change_percent": round(change_pct, 2),
+                "high": round(float(ticker_data['High'].iloc[-1]), 2) if 'High' in ticker_data else current_price,
+                "low": round(float(ticker_data['Low'].iloc[-1]), 2) if 'Low' in ticker_data else current_price,
+                "market_cap": _estimate_market_cap(symbol, current_price),
+                "pe_ratio": pe_ratio,
+                "peg_ratio": peg_ratio,
+                "revenue_growth": revenue_growth,
+                "fair_value": fair_value,
+                "upside_potential": upside,
+                "score": score,
+                "dividend_yield": 0.01,
+            }
+        except Exception as e:
+            logger.debug(f"Error processing {symbol}: {e}")
+            return None
+    
+    all_stocks = []
+    
+    # Process in batches
+    for i in range(0, len(symbols), BATCH_SIZE):
+        batch_symbols = symbols[i:i + BATCH_SIZE]
+        tickers_str = " ".join(batch_symbols)
         
-        # Run sync yf.download in thread pool to avoid blocking async event loop
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as executor:
-            data = await loop.run_in_executor(executor, _download_batch, tickers_str)
-        
-        if data is None or data.empty:
-            logger.warning("yfinance returned empty data")
-            return []
-        
-        stocks = []
-        for symbol in symbols:
-            try:
-                # Handle both single and multi-ticker data structures
-                if len(symbols) == 1:
-                    ticker_data = data
-                else:
-                    if symbol not in data.columns.get_level_values(0):
-                        continue
-                    ticker_data = data[symbol]
-                
-                if ticker_data.empty or len(ticker_data) < 1:
-                    continue
-                
-                current_price = float(ticker_data['Close'].iloc[-1])
-                prev_close = float(ticker_data['Close'].iloc[-2]) if len(ticker_data) >= 2 else current_price
-                
-                if current_price <= 0:
-                    continue
-                
-                meta = _get_metadata(symbol)
-                change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-                
-                # Get metrics from static or calculate defaults
-                pe_ratio = PE_RATIOS.get(symbol, 25.0)
-                peg_ratio = PEG_RATIOS.get(symbol, 2.0)
-                revenue_growth = REVENUE_GROWTH.get(symbol, 0.08)
-                fair_value = _calculate_fair_value(symbol, current_price)
-                upside = _calculate_upside(current_price, fair_value)
-                score = _calculate_score(symbol, current_price, prev_close)
-                
-                stocks.append({
-                    "symbol": symbol,
-                    "name": meta.get("name", symbol),
-                    "sector": meta.get("sector", "Unknown"),
-                    "industry": meta.get("industry", "Unknown"),
-                    "current_price": round(current_price, 2),
-                    "previous_close": round(prev_close, 2),
-                    "change_percent": round(change_pct, 2),
-                    "high": round(float(ticker_data['High'].iloc[-1]), 2) if 'High' in ticker_data else current_price,
-                    "low": round(float(ticker_data['Low'].iloc[-1]), 2) if 'Low' in ticker_data else current_price,
-                    "market_cap": _estimate_market_cap(symbol, current_price),
-                    "pe_ratio": pe_ratio,
-                    "peg_ratio": peg_ratio,
-                    "revenue_growth": revenue_growth,
-                    "fair_value": fair_value,
-                    "upside_potential": upside,
-                    "score": score,
-                    "dividend_yield": 0.01,
-                })
-            except Exception as e:
-                logger.debug(f"Error processing {symbol}: {e}")
+        try:
+            # Run sync yf.download in thread pool
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                data = await loop.run_in_executor(executor, _download_batch, tickers_str)
+            
+            if data is None or (hasattr(data, 'empty') and data.empty):
                 continue
-        
-        logger.info(f"Fetched {len(stocks)} stocks via yfinance batch")
-        return stocks
-        
-    except Exception as e:
-        logger.error(f"Batch fetch failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
+            
+            # Process each symbol in batch
+            for symbol in batch_symbols:
+                result = _process_ticker_data(symbol, data, batch_symbols)
+                if result:
+                    all_stocks.append(result)
+            
+            # Free memory after each batch
+            del data
+            gc.collect()
+            
+        except Exception as e:
+            logger.error(f"Batch {i//BATCH_SIZE + 1} failed: {e}")
+            continue
+    
+    logger.info(f"Fetched {len(all_stocks)} stocks via yfinance batched")
+    return all_stocks
 
 
 def passes_filters(stock: Dict[str, Any], filters: ScreenerFilters) -> bool:

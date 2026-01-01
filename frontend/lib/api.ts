@@ -292,6 +292,14 @@ export const authApi = {
 export interface AIRecommendation {
     symbol: string;
     name: string;
+    sector?: string;
+    current_price: number;
+    change_percent?: number;
+    pe_ratio?: number;
+    peg_ratio?: number;
+    revenue_growth?: number;
+    fair_value?: number;
+    dividend_yield?: number;
     recommendation: string;
     confidence: number;
     reasons: string[];

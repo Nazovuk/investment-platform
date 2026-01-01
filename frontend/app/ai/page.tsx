@@ -183,9 +183,15 @@ export default function AIPage() {
                                 </span>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <div className="text-sm text-muted">Target Price</div>
-                            <div className="stat-value">${recommendations[0].target_price?.toFixed(2) || 'N/A'}</div>
+                        <div className="flex gap-lg" style={{ textAlign: 'right' }}>
+                            <div>
+                                <div className="text-sm text-muted">Current Price</div>
+                                <div className="stat-value" style={{ fontSize: '1.25rem' }}>${recommendations[0].current_price?.toFixed(2) || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div className="text-sm text-muted">Target Price</div>
+                                <div className="stat-value value-positive" style={{ fontSize: '1.25rem' }}>${recommendations[0].target_price?.toFixed(2) || 'N/A'}</div>
+                            </div>
                         </div>
                     </div>
                 </div>

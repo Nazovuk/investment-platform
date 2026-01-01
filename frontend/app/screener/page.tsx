@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { screenerApi, Stock } from '@/lib/api';
+import { exportToCSV, copyToClipboard, ExportColumn } from '@/lib/export';
 
 type SortKey = 'symbol' | 'score' | 'upside_potential' | 'pe_ratio' | 'peg_ratio' | 'current_price';
 type SortDirection = 'asc' | 'desc';
@@ -18,13 +19,13 @@ export default function ScreenerPage() {
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filters
+    // Filters - relaxed defaults to show more stocks
     const [filters, setFilters] = useState({
-        maxPE: 50,
-        maxPEG: 2.0,
-        minScore: 50,
-        minUpside: 0,
-        minRevenueGrowth: 0
+        maxPE: 100,
+        maxPEG: 5.0,
+        minScore: 0,
+        minUpside: -50,
+        minRevenueGrowth: -100
     });
 
     // Fetch stocks from API
@@ -278,6 +279,57 @@ export default function ScreenerPage() {
 
             {/* Results Table */}
             <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h3 style={{ color: 'white', fontSize: '16px', fontWeight: '600', margin: 0 }}>
+                        Screener Results ({filteredAndSortedStocks.length} stocks)
+                    </h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => {
+                                const columns: ExportColumn[] = [
+                                    { key: 'symbol', label: 'Symbol' },
+                                    { key: 'name', label: 'Name' },
+                                    { key: 'sector', label: 'Sector' },
+                                    { key: 'current_price', label: 'Price' },
+                                    { key: 'change_percent', label: 'Change %' },
+                                    { key: 'pe_ratio', label: 'P/E' },
+                                    { key: 'peg_ratio', label: 'PEG' },
+                                    { key: 'upside_potential', label: 'Upside %' },
+                                    { key: 'score', label: 'Score' },
+                                ];
+                                exportToCSV(filteredAndSortedStocks as unknown as Record<string, unknown>[], columns, 'screener_results');
+                            }}
+                            style={{
+                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                background: 'rgba(99,102,241,0.2)', color: '#a5b4fc',
+                                border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer'
+                            }}
+                        >
+                            📥 CSV
+                        </button>
+                        <button
+                            onClick={async () => {
+                                const columns: ExportColumn[] = [
+                                    { key: 'symbol', label: 'Symbol' },
+                                    { key: 'name', label: 'Name' },
+                                    { key: 'current_price', label: 'Price' },
+                                    { key: 'pe_ratio', label: 'P/E' },
+                                    { key: 'upside_potential', label: 'Upside %' },
+                                    { key: 'score', label: 'Score' },
+                                ];
+                                const success = await copyToClipboard(filteredAndSortedStocks as unknown as Record<string, unknown>[], columns);
+                                if (success) alert('Copied to clipboard! Paste into Excel or Google Sheets.');
+                            }}
+                            style={{
+                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                background: 'rgba(16,185,129,0.2)', color: '#6ee7b7',
+                                border: '1px solid rgba(16,185,129,0.3)', cursor: 'pointer'
+                            }}
+                        >
+                            📋 Copy
+                        </button>
+                    </div>
+                </div>
                 {isLoading && stocks.length === 0 ? (
                     <div className="text-center" style={{ padding: 'var(--spacing-2xl)' }}>
                         <div className="spinner" style={{ margin: '0 auto var(--spacing-lg)' }}></div>

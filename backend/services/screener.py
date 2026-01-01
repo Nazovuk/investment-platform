@@ -16,15 +16,44 @@ logger = logging.getLogger(__name__)
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
-# Stock universe - top 50 for faster loading
+# Stock universe - 150+ stocks covering major sectors
 DEFAULT_UNIVERSE = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    "JPM", "V", "MA", "BAC", "BRK.B", "UNH", "JNJ", "LLY",
-    "HD", "PG", "KO", "PEP", "WMT", "COST", "MCD",
-    "XOM", "CVX", "CAT", "BA", "GE", "HON", "RTX", "LMT",
-    "DIS", "NFLX", "CRM", "ORCL", "ADBE", "AMD", "INTC", "AVGO", "QCOM",
-    "PYPL", "SQ", "COIN", "PLTR", "SNOW", "CRWD", "NET", "ZS",
-    "RIVN", "NIO", "ENPH"
+    # Technology - 30 stocks
+    "AAPL", "MSFT", "GOOGL", "META", "NVDA", "AVGO", "ADBE", "CRM", "ORCL", "AMD",
+    "INTC", "QCOM", "TXN", "AMAT", "LRCX", "MU", "MRVL", "ADI", "KLAC", "SNPS",
+    "CDNS", "FTNT", "PANW", "NOW", "INTU", "ADP", "PAYX", "WDAY", "DDOG", "ZS",
+    # Consumer - 25 stocks
+    "AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "TGT", "LOW", "TJX", "ROST",
+    "CMG", "MAR", "HLT", "YUM", "DPZ", "BKNG", "ABNB", "EXPE", "ORLY", "AZO",
+    "EBAY", "ETSY", "W", "CHWY", "ULTA",
+    # Financial Services - 25 stocks
+    "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "C", "AXP", "SCHW",
+    "BLK", "SPGI", "ICE", "CME", "MCO", "BX", "KKR", "APO", "COIN", "PYPL",
+    "SQ", "TROW", "NDAQ", "CB", "AIG",
+    # Healthcare - 25 stocks
+    "UNH", "JNJ", "LLY", "PFE", "ABBV", "MRK", "TMO", "ABT", "DHR", "BMY",
+    "AMGN", "GILD", "ISRG", "MDT", "SYK", "BSX", "ZBH", "EW", "REGN", "VRTX",
+    "BIIB", "MRNA", "CVS", "CI", "HUM",
+    # Industrials - 20 stocks
+    "CAT", "BA", "GE", "HON", "RTX", "LMT", "DE", "UNP", "UPS", "FDX",
+    "ETN", "EMR", "ITW", "ROK", "PH", "CMI", "WM", "RSG", "FAST", "GWW",
+    # Consumer Defensive - 15 stocks
+    "PG", "KO", "PEP", "WMT", "COST", "PM", "MO", "MDLZ", "CL", "KMB",
+    "GIS", "K", "HSY", "TSN", "SJM",
+    # Energy - 10 stocks
+    "XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO", "OXY", "HAL",
+    # Communication Services - 10 stocks
+    "GOOG", "DIS", "NFLX", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO",
+    # Real Estate - 10 stocks
+    "PLD", "AMT", "EQIX", "CCI", "PSA", "O", "DLR", "WELL", "AVB", "EQR",
+    # Utilities - 5 stocks
+    "NEE", "DUK", "SO", "D", "AEP",
+    # Materials - 5 stocks
+    "LIN", "APD", "SHW", "ECL", "FCX",
+    # High Growth / Speculative - 10 stocks
+    "PLTR", "SNOW", "CRWD", "NET", "RIVN", "NIO", "ENPH", "SEDG", "LCID", "SOFI",
+    # Berkshire
+    "BRK.B"
 ]
 
 # Static metadata for all stocks

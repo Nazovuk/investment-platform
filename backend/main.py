@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 
-from routers import screener, optimizer, backtest, portfolio, currency, auth, ai_recommendations, alerts, stock_detail
+from routers import screener, optimizer, backtest, portfolio, currency, auth, ai_recommendations, alerts, stock_detail, market
 from database import engine, Base
 
 
@@ -51,6 +51,7 @@ app.include_router(portfolio.router, prefix="/api/portfolio", tags=["Portfolio"]
 app.include_router(currency.router, prefix="/api/currency", tags=["Currency"])
 app.include_router(ai_recommendations.router, prefix="/api/ai", tags=["AI Recommendations"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Email Alerts"])
+app.include_router(market.router, prefix="/api/market", tags=["Market Data"])
 
 
 @app.get("/")

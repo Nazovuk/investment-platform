@@ -7,6 +7,25 @@ import { screenerApi, Stock } from '@/lib/api';
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+interface MarketIndex {
+    symbol: string;
+    name: string;
+    emoji: string;
+    price: number;
+    change: number;
+    change_percent: number;
+}
+
+interface Currency {
+    code: string;
+    name: string;
+    emoji: string;
+    rate: number;
+    change_percent: number;
+}
+
 // Mock holdings (would come from portfolio API in full implementation)
 const mockHoldings = [
     { symbol: 'AAPL', shares: 50, avgCost: 175.00 },
@@ -23,6 +42,8 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [indices, setIndices] = useState<MarketIndex[]>([]);
+    const [currencies, setCurrencies] = useState<Currency[]>([]);
 
     // Fetch live stock data
     const fetchData = useCallback(async () => {
@@ -40,6 +61,18 @@ export default function DashboardPage() {
             // Update holdings with current prices
             const updatedStocks = allStocks.filter(s => holdingSymbols.includes(s.symbol));
             setStocks(updatedStocks);
+
+            // Fetch market data
+            try {
+                const marketRes = await fetch(`${API_URL}/api/market/summary`);
+                if (marketRes.ok) {
+                    const marketData = await marketRes.json();
+                    setIndices(marketData.indices || []);
+                    setCurrencies(marketData.currencies || []);
+                }
+            } catch (e) {
+                console.warn('Market data fetch failed:', e);
+            }
 
             setLastUpdate(new Date());
         } catch (err) {
@@ -133,6 +166,86 @@ export default function DashboardPage() {
                     </button>
                 </div>
             </header>
+
+            {/* Market Ticker Bar */}
+            {(indices.length > 0 || currencies.length > 0) && (
+                <div className="mb-lg" style={{
+                    display: 'flex',
+                    gap: '12px',
+                    padding: '12px 16px',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(99, 102, 241, 0.15)',
+                    overflowX: 'auto',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center'
+                }}>
+                    {/* Indices */}
+                    {indices.map((idx) => (
+                        <div key={idx.symbol} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 16px',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '8px',
+                            minWidth: '140px',
+                        }}>
+                            <span style={{ fontSize: '18px' }}>{idx.emoji}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '500' }}>{idx.name}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'white' }}>
+                                        {idx.price > 100 ? idx.price.toLocaleString() : idx.price.toFixed(2)}
+                                    </span>
+                                    <span style={{
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        color: idx.change_percent >= 0 ? '#10b981' : '#ef4444',
+                                    }}>
+                                        {idx.change_percent >= 0 ? '+' : ''}{idx.change_percent.toFixed(2)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Divider */}
+                    {indices.length > 0 && currencies.length > 0 && (
+                        <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 8px' }} />
+                    )}
+
+                    {/* Currencies */}
+                    {currencies.map((curr) => (
+                        <div key={curr.code} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 16px',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '8px',
+                            minWidth: '120px',
+                        }}>
+                            <span style={{ fontSize: '18px' }}>{curr.emoji}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '500' }}>{curr.code}/USD</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'white' }}>
+                                        ${curr.rate.toFixed(4)}
+                                    </span>
+                                    <span style={{
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        color: curr.change_percent >= 0 ? '#10b981' : '#ef4444',
+                                    }}>
+                                        {curr.change_percent >= 0 ? '+' : ''}{curr.change_percent.toFixed(2)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Stats Cards */}
             <div className="stats-grid mb-lg">

@@ -56,6 +56,25 @@ export default function PortfolioPage() {
     });
     const [submitting, setSubmitting] = useState(false);
     const [fetchingPrice, setFetchingPrice] = useState(false);
+    const [displayCurrency, setDisplayCurrency] = useState('USD');
+
+    // Exchange rates (approximate - in production would fetch live rates)
+    const EXCHANGE_RATES: Record<string, { rate: number; symbol: string }> = {
+        USD: { rate: 1, symbol: '$' },
+        EUR: { rate: 0.92, symbol: '€' },
+        GBP: { rate: 0.79, symbol: '£' },
+        TRY: { rate: 35.2, symbol: '₺' },
+    };
+
+    // Format currency with selected display currency
+    const formatCurrency = (usdValue: number): string => {
+        const { rate, symbol } = EXCHANGE_RATES[displayCurrency] || EXCHANGE_RATES.USD;
+        const converted = usdValue * rate;
+        if (displayCurrency === 'TRY') {
+            return `${symbol}${converted.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+        }
+        return `${symbol}${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
 
     // Auto-fetch price when symbol changes
     const handleSymbolChange = async (symbol: string) => {
@@ -355,20 +374,43 @@ export default function PortfolioPage() {
                 </div>
             )}
 
+            {/* Currency Selector */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', gap: '8px', alignItems: 'center' }}>
+                <span className="text-muted text-sm">Display Currency:</span>
+                {Object.keys(EXCHANGE_RATES).map((currency) => (
+                    <button
+                        key={currency}
+                        onClick={() => setDisplayCurrency(currency)}
+                        style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: displayCurrency === currency ? '2px solid #7c3aed' : '1px solid rgba(255,255,255,0.2)',
+                            background: displayCurrency === currency ? 'rgba(124,58,237,0.2)' : 'transparent',
+                            color: displayCurrency === currency ? '#a855f7' : '#94a3b8',
+                            cursor: 'pointer',
+                            fontWeight: displayCurrency === currency ? 'bold' : 'normal',
+                            fontSize: '13px'
+                        }}
+                    >
+                        {currency}
+                    </button>
+                ))}
+            </div>
+
             {/* Stats */}
             <div className="stats-grid mb-lg">
                 <div className="stat-card">
                     <span className="stat-label">Total Value</span>
-                    <span className="stat-value">${(portfolio?.total_value || 0).toLocaleString()}</span>
+                    <span className="stat-value">{formatCurrency(portfolio?.total_value || 0)}</span>
                 </div>
                 <div className="stat-card">
                     <span className="stat-label">Total Cost</span>
-                    <span className="stat-value text-muted">${(portfolio?.total_cost || 0).toLocaleString()}</span>
+                    <span className="stat-value text-muted">{formatCurrency(portfolio?.total_cost || 0)}</span>
                 </div>
                 <div className="stat-card">
                     <span className="stat-label">Total Gain/Loss</span>
                     <span className={`stat-value ${(portfolio?.total_gain_loss || 0) >= 0 ? 'value-positive' : 'value-negative'}`}>
-                        {(portfolio?.total_gain_loss || 0) >= 0 ? '+' : ''}${(portfolio?.total_gain_loss || 0).toLocaleString()}
+                        {(portfolio?.total_gain_loss || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio?.total_gain_loss || 0)}
                     </span>
                     <span className={`stat-change ${(portfolio?.total_gain_loss_pct || 0) >= 0 ? 'value-positive' : 'value-negative'}`}>
                         {(portfolio?.total_gain_loss_pct || 0) >= 0 ? '+' : ''}{(portfolio?.total_gain_loss_pct || 0).toFixed(2)}%

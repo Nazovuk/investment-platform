@@ -203,8 +203,10 @@ async def fetch_quote(client: httpx.AsyncClient, symbol: str) -> Optional[Dict[s
                 change = ((price - prev) / prev * 100) if prev > 0 else 0
                 
                 # Calculate real per-stock metrics
+                target_price = ANALYST_TARGETS.get(symbol, price * 1.1)
                 fair_value = calculate_fair_value(symbol, price)
-                upside = calculate_upside(price, fair_value)
+                # Use target_price for upside so it matches displayed target
+                upside = calculate_upside(price, target_price)
                 
                 return {
                     "symbol": symbol,
@@ -219,7 +221,7 @@ async def fetch_quote(client: httpx.AsyncClient, symbol: str) -> Optional[Dict[s
                     "fair_value": fair_value,
                     "upside_potential": upside,
                     "dividend_yield": DIVIDEND_YIELDS.get(symbol, 0.0),
-                    "target_price": ANALYST_TARGETS.get(symbol, price * 1.1),
+                    "target_price": target_price,
                 }
     except Exception as e:
         logger.warning(f"Error fetching {symbol}: {e}")

@@ -86,11 +86,16 @@ export default function PortfolioPage() {
             const data = await res.json();
 
             if (data.portfolios && data.portfolios.length > 0) {
+                // Save portfolio ID to localStorage
+                localStorage.setItem('nazov_portfolio_id', data.portfolios[0].id.toString());
+
                 // Get detailed summary
                 const summaryRes = await fetch(`${API_URL}/api/portfolio/${data.portfolios[0].id}/summary`);
                 if (summaryRes.ok) {
                     const summary = await summaryRes.json();
                     setPortfolio(summary);
+                    // Save portfolio data to localStorage as backup
+                    localStorage.setItem('nazov_portfolio_backup', JSON.stringify(summary));
                 }
             } else {
                 // Create default portfolio
@@ -101,6 +106,7 @@ export default function PortfolioPage() {
                 });
                 if (createRes.ok) {
                     const newPortfolio = await createRes.json();
+                    localStorage.setItem('nazov_portfolio_id', newPortfolio.portfolio.id.toString());
                     setPortfolio({
                         portfolio_id: newPortfolio.portfolio.id,
                         name: newPortfolio.portfolio.name,
@@ -117,13 +123,34 @@ export default function PortfolioPage() {
             setError(null);
         } catch (err) {
             console.error('Error fetching portfolio:', err);
-            setError('Failed to load portfolio');
+            // Try to restore from localStorage backup
+            const backup = localStorage.getItem('nazov_portfolio_backup');
+            if (backup) {
+                try {
+                    const parsed = JSON.parse(backup);
+                    setPortfolio(parsed);
+                    setError('Using cached data - server unavailable');
+                } catch {
+                    setError('Failed to load portfolio');
+                }
+            } else {
+                setError('Failed to load portfolio');
+            }
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
+        // Try to load from localStorage first for instant UI
+        const backup = localStorage.getItem('nazov_portfolio_backup');
+        if (backup) {
+            try {
+                setPortfolio(JSON.parse(backup));
+                setLoading(false);
+            } catch { }
+        }
+        // Then fetch fresh data
         fetchPortfolio();
     }, [fetchPortfolio]);
 

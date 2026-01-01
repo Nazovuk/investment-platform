@@ -694,23 +694,221 @@ a:hover {
 }
 
 @media (max-width: 768px) {
+
+  /* Hide sidebar on mobile */
   .sidebar {
     display: none;
   }
 
+  /* Main content full width */
   .main-content {
     margin-left: 0;
+    padding: var(--spacing-sm);
+    padding-bottom: 80px;
+    /* Space for bottom nav */
+  }
+
+  /* Compact typography */
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  /* Stats grid - 2 columns on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+  }
+
+  .stat-card {
     padding: var(--spacing-md);
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .stat-value {
+    font-size: 1.25rem;
   }
 
+  .stat-label {
+    font-size: 0.7rem;
+  }
+
+  /* Cards - compact padding */
+  .card {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+  }
+
+  .card-header {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .card-title {
+    font-size: 1rem;
+  }
+
+  /* Filters panel - compact */
+  .filters-panel {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .filters-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  /* Page header stack */
   .page-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  /* Tabs - scrollable horizontal */
+  .tabs {
+    overflow-x: auto;
+    width: 100%;
+    justify-content: flex-start;
+    padding: var(--spacing-xs);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  /* Buttons - touch friendly */
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.8rem;
+    min-height: 40px;
+  }
+
+  /* Inputs - larger touch targets */
+  .input,
+  .select {
+    padding: var(--spacing-md);
+    font-size: 1rem;
+    min-height: 44px;
+  }
+
+  /* Table - horizontal scroll with compact cells */
+  .table-container {
+    margin-left: calc(-1 * var(--spacing-sm));
+    margin-right: calc(-1 * var(--spacing-sm));
+    border-radius: 0;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-sm);
+    font-size: 0.75rem;
+  }
+
+  /* Badge - smaller */
+  .badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  /* Glass card - compact */
+  .glass-card {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Progress bar - thinner */
+  .progress-bar {
+    height: 6px;
+  }
+
+  /* Score bar - thinner */
+  .score-bar {
+    height: 4px;
+  }
+
+  /* Utility adjustments */
+  .gap-lg {
     gap: var(--spacing-md);
+  }
+
+  .mt-lg,
+  .mb-lg {
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+}
+
+/* Extra small screens (< 480px) */
+@media (max-width: 480px) {
+  .main-content {
+    padding: var(--spacing-xs);
+    padding-bottom: 80px;
+  }
+
+  /* Single column stats on very small screens */
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+  }
+
+  /* Even more compact cards */
+  .card,
+  .glass-card {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+  }
+
+  /* Hide less important columns on very small screens */
+  .data-table .hide-mobile {
+    display: none;
+  }
+
+  /* Smaller fonts */
+  .text-sm {
+    font-size: 0.75rem;
+  }
+
+  .text-xs {
+    font-size: 0.65rem;
+  }
+
+  /* Compact page title */
+  .page-title {
+    font-size: 1.1rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  h2 {
+    font-size: 1.1rem;
+  }
+
+  h3 {
+    font-size: 1rem;
   }
 }
 

@@ -172,40 +172,61 @@ async def get_stock_history(
 
 @router.get("/{symbol}/news")
 async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
-    """Get latest news for a stock."""
+    """Get latest news for a stock using Finnhub API (more reliable than yfinance)."""
+    import httpx
+    import os
+    from datetime import datetime, timedelta
+    
+    FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
+    
     try:
+        # Use Finnhub company news endpoint
+        today = datetime.now()
+        from_date = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+        to_date = today.strftime("%Y-%m-%d")
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            url = f"https://finnhub.io/api/v1/company-news?symbol={symbol.upper()}&from={from_date}&to={to_date}&token={FINNHUB_API_KEY}"
+            response = await client.get(url)
+            
+            if response.status_code == 200:
+                news_data = response.json()
+                
+                formatted_news = []
+                for item in news_data[:limit]:
+                    # Finnhub has consistent structure
+                    pub_time = item.get("datetime", 0)
+                    pub_date = datetime.fromtimestamp(pub_time).strftime("%b %d, %Y") if pub_time > 0 else "Recently"
+                    
+                    formatted_news.append({
+                        "title": item.get("headline", "News Article"),
+                        "publisher": item.get("source", "Financial News"),
+                        "link": item.get("url", ""),
+                        "published": pub_time,
+                        "published_date": pub_date,
+                        "thumbnail": item.get("image", ""),
+                        "summary": item.get("summary", "")[:300] + "..." if len(item.get("summary", "")) > 300 else item.get("summary", ""),
+                        "type": "article",
+                    })
+                
+                if formatted_news:
+                    return {
+                        "symbol": symbol.upper(),
+                        "count": len(formatted_news),
+                        "news": formatted_news
+                    }
+        
+        # Fallback to yfinance if Finnhub fails
         ticker = yf.Ticker(symbol.upper())
         news = ticker.news or []
         
-        # Debug: log first news item structure
-        if news:
-            logger.info(f"News structure for {symbol}: {list(news[0].keys()) if news[0] else 'empty'}")
-        
-        # Format news items
         formatted_news = []
         for item in news[:limit]:
-            # Log full item for debugging
-            logger.debug(f"News item: {item}")
+            title = item.get("title") or item.get("headline") or "News Article"
+            publisher = item.get("publisher") or item.get("source") or "Financial News"
+            link = item.get("link") or item.get("url") or ""
+            pub_time = item.get("providerPublishTime") or 0
             
-            # Title - try multiple possible keys
-            title = item.get("title") or item.get("headline") or item.get("name") or "News Article"
-            
-            # Publisher
-            publisher = item.get("publisher") or item.get("source") or item.get("provider") or "Financial News"
-            
-            # Link - try multiple possible keys
-            link = item.get("link") or item.get("url") or item.get("guid") or item.get("canonical_url") or ""
-            
-            # Timestamp
-            pub_time = item.get("providerPublishTime") or item.get("publishTime") or item.get("publish_time") or item.get("published_at") or 0
-            if isinstance(pub_time, str):
-                try:
-                    from dateutil import parser
-                    pub_time = int(parser.parse(pub_time).timestamp())
-                except:
-                    pub_time = 0
-            
-            # Thumbnail
             thumbnail = ""
             if item.get("thumbnail"):
                 thumb = item["thumbnail"]
@@ -216,19 +237,8 @@ async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
                 elif isinstance(thumb, str):
                     thumbnail = thumb
             
-            # Summary
-            summary = item.get("summary") or item.get("description") or item.get("text") or ""
-            if not summary and title and title != "News Article":
-                summary = title
-            
-            # Format date
-            if pub_time > 0:
-                try:
-                    pub_date = datetime.fromtimestamp(pub_time).strftime("%b %d, %Y")
-                except:
-                    pub_date = "Recently"
-            else:
-                pub_date = "Recently"
+            summary = item.get("summary") or item.get("description") or title
+            pub_date = datetime.fromtimestamp(pub_time).strftime("%b %d, %Y") if pub_time > 0 else "Recently"
             
             formatted_news.append({
                 "title": title,
@@ -237,8 +247,8 @@ async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
                 "published": pub_time,
                 "published_date": pub_date,
                 "thumbnail": thumbnail,
-                "summary": summary[:200] + "..." if len(summary) > 200 else summary,
-                "type": item.get("type", "article"),
+                "summary": summary[:300] + "..." if len(summary) > 300 else summary,
+                "type": "article",
             })
         
         return {

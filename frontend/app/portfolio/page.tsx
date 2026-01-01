@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { exportToCSV, copyToClipboard, ExportColumn } from '@/lib/export';
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
@@ -407,6 +408,57 @@ export default function PortfolioPage() {
                         {/* Holdings Tab */}
                         {activeTab === 'holdings' && (
                             <div className="card">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <h3 style={{ color: 'white', fontSize: '16px', fontWeight: '600', margin: 0 }}>Holdings</h3>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => {
+                                                const columns: ExportColumn[] = [
+                                                    { key: 'symbol', label: 'Symbol' },
+                                                    { key: 'name', label: 'Name' },
+                                                    { key: 'shares', label: 'Shares' },
+                                                    { key: 'avg_cost', label: 'Avg Cost' },
+                                                    { key: 'current_price', label: 'Price' },
+                                                    { key: 'current_value', label: 'Value' },
+                                                    { key: 'gain_loss', label: 'Gain/Loss' },
+                                                    { key: 'gain_loss_pct', label: 'Gain %' },
+                                                    { key: 'weight', label: 'Weight %' },
+                                                ];
+                                                exportToCSV(positions as unknown as Record<string, unknown>[], columns, 'portfolio_holdings');
+                                            }}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                background: 'rgba(99,102,241,0.2)', color: '#a5b4fc',
+                                                border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            📥 CSV
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                const columns: ExportColumn[] = [
+                                                    { key: 'symbol', label: 'Symbol' },
+                                                    { key: 'name', label: 'Name' },
+                                                    { key: 'shares', label: 'Shares' },
+                                                    { key: 'avg_cost', label: 'Avg Cost' },
+                                                    { key: 'current_price', label: 'Price' },
+                                                    { key: 'current_value', label: 'Value' },
+                                                    { key: 'gain_loss', label: 'Gain/Loss' },
+                                                    { key: 'weight', label: 'Weight %' },
+                                                ];
+                                                const success = await copyToClipboard(positions as unknown as Record<string, unknown>[], columns);
+                                                if (success) alert('Copied to clipboard! Paste into Excel or Google Sheets.');
+                                            }}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                background: 'rgba(16,185,129,0.2)', color: '#6ee7b7',
+                                                border: '1px solid rgba(16,185,129,0.3)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="table-container">
                                     <table className="data-table">
                                         <thead>
@@ -434,11 +486,15 @@ export default function PortfolioPage() {
                                                             }}
                                                             style={{
                                                                 background: 'none', border: 'none', cursor: 'pointer',
-                                                                color: '#a855f7', fontWeight: 'bold', padding: 0
+                                                                color: '#a855f7', fontWeight: 'bold', padding: 0,
+                                                                display: 'flex', alignItems: 'center', gap: '4px'
                                                             }}
                                                             title={`Open ${pos.symbol} details`}
                                                         >
-                                                            {pos.symbol} ↗
+                                                            {pos.symbol}
+                                                            <span style={{ color: pos.gain_loss >= 0 ? '#10b981' : '#ef4444', fontSize: '14px' }}>
+                                                                {pos.gain_loss >= 0 ? '↗' : '↘'}
+                                                            </span>
                                                         </button>
                                                     </td>
                                                     <td className="text-muted truncate" style={{ maxWidth: 150 }}>{pos.name}</td>

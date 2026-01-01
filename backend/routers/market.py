@@ -141,7 +141,9 @@ async def get_market_indices():
 
 @router.get("/currencies")
 async def get_currencies():
-    """Get major currency rates vs USD."""
+    """Get major currency rates vs USD including Bitcoin."""
+    import yfinance as yf
+    
     currencies = [
         {"code": "EUR", "name": "Euro", "emoji": "🇪🇺"},
         {"code": "GBP", "name": "British Pound", "emoji": "🇬🇧"},
@@ -157,6 +159,31 @@ async def get_currencies():
             "emoji": curr["emoji"],
             "rate": rate_data["rate"],
             "change_percent": rate_data["change_percent"],
+        })
+    
+    # Add Bitcoin via yfinance
+    try:
+        btc = yf.Ticker("BTC-USD")
+        hist = btc.history(period="2d")
+        if len(hist) >= 1:
+            current = hist['Close'].iloc[-1]
+            prev = hist['Close'].iloc[-2] if len(hist) >= 2 else current
+            change_pct = ((current - prev) / prev * 100) if prev > 0 else 0
+            results.append({
+                "code": "BTC",
+                "name": "Bitcoin",
+                "emoji": "₿",
+                "rate": round(current, 2),
+                "change_percent": round(change_pct, 2),
+            })
+    except Exception as e:
+        print(f"Error fetching BTC: {e}")
+        results.append({
+            "code": "BTC",
+            "name": "Bitcoin", 
+            "emoji": "₿",
+            "rate": 0,
+            "change_percent": 0,
         })
     
     return {"currencies": results}

@@ -257,45 +257,97 @@ async def get_stock_earnings(symbol: str):
     """Get quarterly earnings data with EPS comparisons."""
     try:
         ticker = yf.Ticker(symbol.upper())
-        
-        # Get quarterly earnings
-        earnings_quarterly = ticker.quarterly_earnings
-        earnings_history = ticker.earnings_history
+        info = ticker.info
         
         quarters = []
-        if earnings_quarterly is not None and not earnings_quarterly.empty:
-            for idx, row in earnings_quarterly.tail(8).iterrows():
-                quarters.append({
-                    "date": str(idx),
-                    "revenue": row.get("Revenue"),
-                    "earnings": row.get("Earnings"),
-                })
-        
-        # Get EPS history
         eps_history = []
-        if earnings_history is not None and not earnings_history.empty:
-            for idx, row in earnings_history.tail(8).iterrows():
-                eps_history.append({
-                    "date": str(idx) if hasattr(idx, '__str__') else idx,
-                    "eps_estimate": row.get("epsEstimate"),
-                    "eps_actual": row.get("epsActual"),
-                    "eps_difference": row.get("epsDifference"),
-                    "surprise_pct": row.get("surprisePercent"),
-                })
+        
+        # Try to get quarterly income statement (most reliable)
+        try:
+            quarterly_income = ticker.quarterly_income_stmt
+            if quarterly_income is not None and not quarterly_income.empty:
+                for col in quarterly_income.columns[:8]:  # Last 8 quarters
+                    period_date = str(col.date()) if hasattr(col, 'date') else str(col)[:10]
+                    
+                    # Get key metrics
+                    revenue = None
+                    earnings = None
+                    eps = None
+                    
+                    if "Total Revenue" in quarterly_income.index:
+                        val = quarterly_income.loc["Total Revenue", col]
+                        revenue = float(val) if pd.notna(val) else None
+                    
+                    if "Net Income" in quarterly_income.index:
+                        val = quarterly_income.loc["Net Income", col]
+                        earnings = float(val) if pd.notna(val) else None
+                    
+                    # Calculate EPS if shares outstanding available
+                    if "Basic EPS" in quarterly_income.index:
+                        val = quarterly_income.loc["Basic EPS", col]
+                        eps = float(val) if pd.notna(val) else None
+                    elif "Diluted EPS" in quarterly_income.index:
+                        val = quarterly_income.loc["Diluted EPS", col]
+                        eps = float(val) if pd.notna(val) else None
+                    
+                    quarters.append({
+                        "date": period_date,
+                        "revenue": revenue,
+                        "earnings": earnings,
+                        "eps": eps,
+                    })
+                    
+                    # Also add to eps_history
+                    if eps is not None:
+                        eps_history.append({
+                            "date": period_date,
+                            "eps_actual": eps,
+                            "eps_estimate": None,  # Not available from income stmt
+                            "eps_difference": None,
+                            "surprise_pct": None,
+                        })
+        except Exception as e:
+            logger.warning(f"Could not get quarterly income for {symbol}: {e}")
+        
+        # If no data from quarterly income, try earnings_dates for estimates
+        if not quarters:
+            try:
+                earnings_dates = ticker.earnings_dates
+                if earnings_dates is not None and not earnings_dates.empty:
+                    for idx, row in earnings_dates.tail(8).iterrows():
+                        date_str = str(idx)[:10] if hasattr(idx, 'strftime') else str(idx)[:10]
+                        eps_history.append({
+                            "date": date_str,
+                            "eps_actual": row.get("Reported EPS"),
+                            "eps_estimate": row.get("EPS Estimate"),
+                            "eps_difference": None,
+                            "surprise_pct": row.get("Surprise(%)"),
+                        })
+            except Exception as e:
+                logger.warning(f"Could not get earnings_dates for {symbol}: {e}")
         
         # Get next earnings date
-        earnings_dates = ticker.earnings_dates
         next_earnings = None
-        if earnings_dates is not None and not earnings_dates.empty:
-            future_dates = earnings_dates[earnings_dates.index > pd.Timestamp.now()]
-            if not future_dates.empty:
-                next_earnings = str(future_dates.index[0])
+        try:
+            earnings_dates = ticker.earnings_dates
+            if earnings_dates is not None and not earnings_dates.empty:
+                future_dates = earnings_dates[earnings_dates.index > pd.Timestamp.now()]
+                if not future_dates.empty:
+                    next_earnings = str(future_dates.index[0])[:10]
+        except:
+            pass
+        
+        # Fall back to info for current EPS
+        current_eps = info.get("trailingEps")
+        forward_eps = info.get("forwardEps")
         
         return {
             "symbol": symbol.upper(),
             "quarters": quarters,
             "eps_history": eps_history,
             "next_earnings": next_earnings,
+            "current_eps": current_eps,
+            "forward_eps": forward_eps,
         }
         
     except Exception as e:

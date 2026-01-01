@@ -435,9 +435,12 @@ export default function DashboardPage() {
                                                         const top = (window.screen.height - h) / 2;
                                                         window.open(`/stock/${pos.symbol}`, `stock_${pos.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
                                                     }}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0 }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
                                                 >
-                                                    {pos.symbol} ↗
+                                                    {pos.symbol}
+                                                    <span style={{ color: pos.daily_change_pct >= 0 ? '#10b981' : '#ef4444', fontSize: '14px' }}>
+                                                        {pos.daily_change_pct >= 0 ? '↗' : '↘'}
+                                                    </span>
                                                 </button>
                                             </td>
                                             <td className="text-right font-mono">{pos.shares}</td>

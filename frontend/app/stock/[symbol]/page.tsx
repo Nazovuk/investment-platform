@@ -73,9 +73,11 @@ interface NewsItem {
 }
 
 interface EarningsData {
-    quarters: { date: string; revenue: number; earnings: number }[];
-    eps_history: { date: string; eps_estimate: number; eps_actual: number; surprise_pct: number }[];
+    quarters: { date: string; revenue: number | null; earnings: number | null; eps: number | null }[];
+    eps_history: { date: string; eps_estimate: number | null; eps_actual: number | null; surprise_pct: number | null }[];
     next_earnings: string | null;
+    current_eps: number | null;
+    forward_eps: number | null;
 }
 
 interface FinancialsData {
@@ -601,22 +603,67 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                             💰 Earnings History - {symbol}
                         </h2>
 
-                        {earnings.next_earnings && (
-                            <div style={{
-                                padding: '16px',
-                                background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(219,39,119,0.1) 100%)',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(236,72,153,0.3)',
-                                marginBottom: '24px'
-                            }}>
-                                <span style={{ fontSize: '14px', color: '#f472b6' }}>📅 Next Earnings: </span>
-                                <span style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
-                                    {new Date(earnings.next_earnings).toLocaleDateString()}
-                                </span>
+                        {/* Current EPS Summary */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                            <div style={{ padding: '20px', background: 'rgba(99,102,241,0.1)', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                <div style={{ color: '#9ca3af', fontSize: '12px', marginBottom: '8px' }}>Current EPS (TTM)</div>
+                                <div style={{ color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                                    ${earnings.current_eps?.toFixed(2) || '—'}
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px', background: 'rgba(16,185,129,0.1)', borderRadius: '12px', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                <div style={{ color: '#9ca3af', fontSize: '12px', marginBottom: '8px' }}>Forward EPS</div>
+                                <div style={{ color: '#10b981', fontSize: '24px', fontWeight: '700' }}>
+                                    ${earnings.forward_eps?.toFixed(2) || '—'}
+                                </div>
+                            </div>
+                            {earnings.next_earnings && (
+                                <div style={{ padding: '20px', background: 'rgba(236,72,153,0.1)', borderRadius: '12px', border: '1px solid rgba(236,72,153,0.2)' }}>
+                                    <div style={{ color: '#9ca3af', fontSize: '12px', marginBottom: '8px' }}>📅 Next Earnings</div>
+                                    <div style={{ color: '#f472b6', fontSize: '16px', fontWeight: '600' }}>
+                                        {earnings.next_earnings}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Quarterly Revenue & Earnings Table */}
+                        {earnings.quarters && earnings.quarters.length > 0 && (
+                            <div style={{ marginBottom: '32px' }}>
+                                <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>Quarterly Revenue & Earnings</h3>
+                                <div className="table-container">
+                                    <table className="data-table" style={{ width: '100%' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Quarter</th>
+                                                <th className="text-right">Revenue</th>
+                                                <th className="text-right">Net Income</th>
+                                                <th className="text-right">EPS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {earnings.quarters.slice(0, 8).map((q: { date: string; revenue: number | null; earnings: number | null; eps: number | null }, idx: number) => (
+                                                <tr key={idx}>
+                                                    <td style={{ fontWeight: '500' }}>{q.date}</td>
+                                                    <td className="text-right font-mono">
+                                                        {q.revenue ? `$${(q.revenue / 1e9).toFixed(2)}B` : '—'}
+                                                    </td>
+                                                    <td className="text-right font-mono" style={{ color: (q.earnings || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                                                        {q.earnings ? `$${(q.earnings / 1e9).toFixed(2)}B` : '—'}
+                                                    </td>
+                                                    <td className="text-right font-mono" style={{ color: (q.eps || 0) >= 0 ? '#10b981' : '#ef4444', fontWeight: '600' }}>
+                                                        {q.eps ? `$${q.eps.toFixed(2)}` : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
 
-                        {earnings.eps_history.length > 0 && (
+                        {/* EPS History */}
+                        {earnings.eps_history && earnings.eps_history.length > 0 && (
                             <div style={{ marginBottom: '32px' }}>
                                 <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>EPS - Actual vs Estimate</h3>
                                 <div className="table-container">
@@ -630,7 +677,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {earnings.eps_history.slice(0, 8).map((q, idx) => (
+                                            {earnings.eps_history.slice(0, 8).map((q: { date: string; eps_estimate: number | null; eps_actual: number | null; surprise_pct: number | null }, idx: number) => (
                                                 <tr key={idx}>
                                                     <td>{q.date}</td>
                                                     <td className="text-right font-mono">${q.eps_estimate?.toFixed(2) || '—'}</td>
@@ -639,13 +686,22 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                                         color: (q.surprise_pct || 0) >= 0 ? '#10b981' : '#ef4444',
                                                         fontWeight: '600'
                                                     }}>
-                                                        {q.surprise_pct ? `${q.surprise_pct >= 0 ? '+' : ''}${(q.surprise_pct * 100).toFixed(1)}%` : '—'}
+                                                        {q.surprise_pct != null ? `${q.surprise_pct >= 0 ? '+' : ''}${q.surprise_pct.toFixed(1)}%` : '—'}
                                                     </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* No data message */}
+                        {(!earnings.quarters || earnings.quarters.length === 0) && (!earnings.eps_history || earnings.eps_history.length === 0) && (
+                            <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af', background: 'rgba(255,255,255,0.02)', borderRadius: '16px' }}>
+                                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+                                <div>No earnings data available for this stock.</div>
+                                <div style={{ fontSize: '12px', marginTop: '8px' }}>This may be a newer company or earnings data is not reported.</div>
                             </div>
                         )}
                     </div>

@@ -180,12 +180,43 @@ async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
         # Format news items
         formatted_news = []
         for item in news[:limit]:
+            # Handle different date field names
+            pub_time = item.get("providerPublishTime", 0)
+            if not pub_time:
+                pub_time = item.get("publishTime", 0)
+            if not pub_time:
+                pub_time = item.get("publish_time", 0)
+            
+            # Get link - yfinance might use different field names
+            link = item.get("link", "")
+            if not link:
+                link = item.get("url", "")
+            if not link:
+                link = item.get("guid", "")
+            
+            # Get thumbnail
+            thumbnail = ""
+            if item.get("thumbnail"):
+                resolutions = item["thumbnail"].get("resolutions", [])
+                if resolutions:
+                    thumbnail = resolutions[0].get("url", "")
+            
+            # Get summary/description
+            summary = item.get("summary", "")
+            if not summary:
+                summary = item.get("description", "")
+            if not summary:
+                # Use first 150 chars of title as fallback
+                summary = item.get("title", "")[:150]
+            
             formatted_news.append({
-                "title": item.get("title", ""),
-                "publisher": item.get("publisher", ""),
-                "link": item.get("link", ""),
-                "published": item.get("providerPublishTime", 0),
-                "thumbnail": item.get("thumbnail", {}).get("resolutions", [{}])[0].get("url", "") if item.get("thumbnail") else "",
+                "title": item.get("title", "No title"),
+                "publisher": item.get("publisher", "Unknown"),
+                "link": link,
+                "published": pub_time,
+                "published_date": datetime.fromtimestamp(pub_time).strftime("%Y-%m-%d %H:%M") if pub_time > 0 else "Recently",
+                "thumbnail": thumbnail,
+                "summary": summary[:200] + "..." if len(summary) > 200 else summary,
                 "type": item.get("type", "article"),
             })
         

@@ -67,7 +67,9 @@ interface NewsItem {
     publisher: string;
     link: string;
     published: number;
+    published_date: string;
     thumbnail: string;
+    summary: string;
 }
 
 interface EarningsData {
@@ -540,42 +542,50 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                 {news.map((item, idx) => (
                                     <a
                                         key={idx}
-                                        href={item.link}
+                                        href={item.link || '#'}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         style={{
                                             display: 'flex',
                                             gap: '16px',
-                                            padding: '16px',
-                                            background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.05) 100%)',
-                                            borderRadius: '12px',
-                                            border: '1px solid rgba(99,102,241,0.2)',
+                                            padding: '20px',
+                                            background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.05) 100%)',
+                                            borderRadius: '16px',
+                                            border: '1px solid rgba(99,102,241,0.25)',
                                             textDecoration: 'none',
-                                            transition: 'all 0.2s'
+                                            transition: 'all 0.2s',
+                                            cursor: 'pointer'
                                         }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#7c3aed')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.25)')}
                                     >
                                         {item.thumbnail && (
                                             <img
                                                 src={item.thumbnail}
                                                 alt=""
-                                                style={{ width: '80px', height: '60px', borderRadius: '8px', objectFit: 'cover' }}
+                                                style={{ width: '120px', height: '80px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
                                             />
                                         )}
-                                        <div style={{ flex: 1 }}>
-                                            <h3 style={{ color: 'white', fontSize: '15px', fontWeight: '600', margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <h3 style={{ color: 'white', fontSize: '16px', fontWeight: '600', margin: '0 0 8px 0', lineHeight: '1.4' }}>
                                                 {item.title}
                                             </h3>
-                                            <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#9ca3af' }}>
-                                                <span>{item.publisher}</span>
-                                                <span>{new Date(item.published * 1000).toLocaleDateString()}</span>
+                                            {item.summary && (
+                                                <p style={{ color: '#9ca3af', fontSize: '13px', margin: '0 0 12px 0', lineHeight: '1.5', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {item.summary}
+                                                </p>
+                                            )}
+                                            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#6b7280' }}>
+                                                <span style={{ color: '#a855f7', fontWeight: '500' }}>{item.publisher}</span>
+                                                <span>{item.published_date || 'Recently'}</span>
                                             </div>
                                         </div>
-                                        <span style={{ color: '#a855f7', fontSize: '18px' }}>↗</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', color: '#7c3aed', fontSize: '20px' }}>↗</div>
                                     </a>
                                 ))}
                             </div>
                         ) : (
-                            <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
+                            <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af', background: 'rgba(255,255,255,0.02)', borderRadius: '16px' }}>
                                 No news available for this stock.
                             </div>
                         )}

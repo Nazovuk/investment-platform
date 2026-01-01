@@ -199,15 +199,35 @@ export default function DashboardPage() {
                 }}>
                     {/* Indices */}
                     {indices.map((idx) => (
-                        <div key={idx.symbol} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 16px',
-                            background: 'rgba(255,255,255,0.03)',
-                            borderRadius: '8px',
-                            minWidth: '140px',
-                        }}>
+                        <div
+                            key={idx.symbol}
+                            onClick={() => {
+                                const w = 1200, h = 800;
+                                const left = (window.screen.width - w) / 2;
+                                const top = (window.screen.height - h) / 2;
+                                window.open(`/stock/${idx.symbol}`, `stock_${idx.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 16px',
+                                background: 'rgba(255,255,255,0.03)',
+                                borderRadius: '8px',
+                                minWidth: '140px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                border: '1px solid transparent',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(99,102,241,0.15)';
+                                e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                e.currentTarget.style.borderColor = 'transparent';
+                            }}
+                        >
                             <span style={{ fontSize: '18px' }}>{idx.emoji}</span>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '500' }}>{idx.name}</span>

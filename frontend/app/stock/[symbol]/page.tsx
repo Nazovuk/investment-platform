@@ -62,6 +62,25 @@ interface HistoryData {
     sma200: number | null;
 }
 
+interface NewsItem {
+    title: string;
+    publisher: string;
+    link: string;
+    published: number;
+    thumbnail: string;
+}
+
+interface EarningsData {
+    quarters: { date: string; revenue: number; earnings: number }[];
+    eps_history: { date: string; eps_estimate: number; eps_actual: number; surprise_pct: number }[];
+    next_earnings: string | null;
+}
+
+interface FinancialsData {
+    income_statement: { period: string; total_revenue: number; gross_profit: number; operating_income: number; net_income: number }[];
+    cash_flow: { period: string; operating_cash_flow: number; free_cash_flow: number; capital_expenditure: number }[];
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function StockDetailPage({ params }: { params: { symbol: string } }) {
@@ -70,10 +89,13 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
     const [detail, setDetail] = useState<StockDetail | null>(null);
     const [history, setHistory] = useState<HistoryData[]>([]);
+    const [news, setNews] = useState<NewsItem[]>([]);
+    const [earnings, setEarnings] = useState<EarningsData | null>(null);
+    const [financials, setFinancials] = useState<FinancialsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [period, setPeriod] = useState('6mo');
-    const [activeView, setActiveView] = useState<'chart' | 'fundamentals'>('chart');
+    const [activeView, setActiveView] = useState<'chart' | 'fundamentals' | 'news' | 'earnings' | 'financials'>('chart');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -81,9 +103,12 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
             setError(null);
 
             try {
-                const [detailRes, historyRes] = await Promise.all([
+                const [detailRes, historyRes, newsRes, earningsRes, financialsRes] = await Promise.all([
                     fetch(`${API_URL}/api/stock/${symbol}`),
-                    fetch(`${API_URL}/api/stock/${symbol}/history?period=${period}`)
+                    fetch(`${API_URL}/api/stock/${symbol}/history?period=${period}`),
+                    fetch(`${API_URL}/api/stock/${symbol}/news`),
+                    fetch(`${API_URL}/api/stock/${symbol}/earnings`),
+                    fetch(`${API_URL}/api/stock/${symbol}/financials`)
                 ]);
 
                 if (detailRes.ok) {
@@ -95,6 +120,19 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                 if (historyRes.ok) {
                     const data = await historyRes.json();
                     setHistory(data.data || []);
+                }
+
+                if (newsRes.ok) {
+                    const data = await newsRes.json();
+                    setNews(data.news || []);
+                }
+
+                if (earningsRes.ok) {
+                    setEarnings(await earningsRes.json());
+                }
+
+                if (financialsRes.ok) {
+                    setFinancials(await financialsRes.json());
                 }
             } catch (err) {
                 setError('Failed to load stock data');
@@ -250,7 +288,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
             {/* Tab Buttons */}
             <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px 0' }}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
                     <TabButton active={activeView === 'chart'} onClick={() => setActiveView('chart')}>
                         <BarChart3 style={{ width: '16px', height: '16px', marginRight: '8px' }} />
                         Price Chart
@@ -258,6 +296,15 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                     <TabButton active={activeView === 'fundamentals'} onClick={() => setActiveView('fundamentals')}>
                         <Activity style={{ width: '16px', height: '16px', marginRight: '8px' }} />
                         Fundamentals
+                    </TabButton>
+                    <TabButton active={activeView === 'news'} onClick={() => setActiveView('news')}>
+                        📰 News ({news.length})
+                    </TabButton>
+                    <TabButton active={activeView === 'earnings'} onClick={() => setActiveView('earnings')}>
+                        💰 Earnings
+                    </TabButton>
+                    <TabButton active={activeView === 'financials'} onClick={() => setActiveView('financials')}>
+                        📊 Financials
                     </TabButton>
                 </div>
             </div>
@@ -479,6 +526,189 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                 <MetricRow label="Industry" value={detail.industry} />
                             </SectionCard>
                         </div>
+                    </div>
+                )}
+
+                {/* News Tab */}
+                {activeView === 'news' && (
+                    <div>
+                        <h2 style={{ color: 'white', fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>
+                            📰 Latest News for {symbol}
+                        </h2>
+                        {news.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {news.map((item, idx) => (
+                                    <a
+                                        key={idx}
+                                        href={item.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                            display: 'flex',
+                                            gap: '16px',
+                                            padding: '16px',
+                                            background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.05) 100%)',
+                                            borderRadius: '12px',
+                                            border: '1px solid rgba(99,102,241,0.2)',
+                                            textDecoration: 'none',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {item.thumbnail && (
+                                            <img
+                                                src={item.thumbnail}
+                                                alt=""
+                                                style={{ width: '80px', height: '60px', borderRadius: '8px', objectFit: 'cover' }}
+                                            />
+                                        )}
+                                        <div style={{ flex: 1 }}>
+                                            <h3 style={{ color: 'white', fontSize: '15px', fontWeight: '600', margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                                                {item.title}
+                                            </h3>
+                                            <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#9ca3af' }}>
+                                                <span>{item.publisher}</span>
+                                                <span>{new Date(item.published * 1000).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                        <span style={{ color: '#a855f7', fontSize: '18px' }}>↗</span>
+                                    </a>
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
+                                No news available for this stock.
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Earnings Tab */}
+                {activeView === 'earnings' && earnings && (
+                    <div>
+                        <h2 style={{ color: 'white', fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>
+                            💰 Earnings History - {symbol}
+                        </h2>
+
+                        {earnings.next_earnings && (
+                            <div style={{
+                                padding: '16px',
+                                background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(219,39,119,0.1) 100%)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(236,72,153,0.3)',
+                                marginBottom: '24px'
+                            }}>
+                                <span style={{ fontSize: '14px', color: '#f472b6' }}>📅 Next Earnings: </span>
+                                <span style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
+                                    {new Date(earnings.next_earnings).toLocaleDateString()}
+                                </span>
+                            </div>
+                        )}
+
+                        {earnings.eps_history.length > 0 && (
+                            <div style={{ marginBottom: '32px' }}>
+                                <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>EPS - Actual vs Estimate</h3>
+                                <div className="table-container">
+                                    <table className="data-table" style={{ width: '100%' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Quarter</th>
+                                                <th className="text-right">EPS Estimate</th>
+                                                <th className="text-right">EPS Actual</th>
+                                                <th className="text-right">Surprise %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {earnings.eps_history.slice(0, 8).map((q, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{q.date}</td>
+                                                    <td className="text-right font-mono">${q.eps_estimate?.toFixed(2) || '—'}</td>
+                                                    <td className="text-right font-mono">${q.eps_actual?.toFixed(2) || '—'}</td>
+                                                    <td className="text-right font-mono" style={{
+                                                        color: (q.surprise_pct || 0) >= 0 ? '#10b981' : '#ef4444',
+                                                        fontWeight: '600'
+                                                    }}>
+                                                        {q.surprise_pct ? `${q.surprise_pct >= 0 ? '+' : ''}${(q.surprise_pct * 100).toFixed(1)}%` : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Financials Tab */}
+                {activeView === 'financials' && financials && (
+                    <div>
+                        <h2 style={{ color: 'white', fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>
+                            📊 Financial Statements - {symbol}
+                        </h2>
+
+                        {financials.income_statement.length > 0 && (
+                            <div style={{ marginBottom: '32px' }}>
+                                <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>Income Statement (Annual)</h3>
+                                <div className="table-container">
+                                    <table className="data-table" style={{ width: '100%' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Period</th>
+                                                <th className="text-right">Revenue</th>
+                                                <th className="text-right">Gross Profit</th>
+                                                <th className="text-right">Operating Income</th>
+                                                <th className="text-right">Net Income</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {financials.income_statement.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{row.period}</td>
+                                                    <td className="text-right font-mono">{fmtMoney(row.total_revenue)}</td>
+                                                    <td className="text-right font-mono">{fmtMoney(row.gross_profit)}</td>
+                                                    <td className="text-right font-mono">{fmtMoney(row.operating_income)}</td>
+                                                    <td className="text-right font-mono" style={{
+                                                        color: (row.net_income || 0) >= 0 ? '#10b981' : '#ef4444'
+                                                    }}>{fmtMoney(row.net_income)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {financials.cash_flow.length > 0 && (
+                            <div>
+                                <h3 style={{ color: '#d1d5db', fontSize: '16px', marginBottom: '16px' }}>Cash Flow Statement</h3>
+                                <div className="table-container">
+                                    <table className="data-table" style={{ width: '100%' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Period</th>
+                                                <th className="text-right">Operating Cash Flow</th>
+                                                <th className="text-right">Free Cash Flow</th>
+                                                <th className="text-right">CapEx</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {financials.cash_flow.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{row.period}</td>
+                                                    <td className="text-right font-mono" style={{
+                                                        color: (row.operating_cash_flow || 0) >= 0 ? '#10b981' : '#ef4444'
+                                                    }}>{fmtMoney(row.operating_cash_flow)}</td>
+                                                    <td className="text-right font-mono" style={{
+                                                        color: (row.free_cash_flow || 0) >= 0 ? '#10b981' : '#ef4444'
+                                                    }}>{fmtMoney(row.free_cash_flow)}</td>
+                                                    <td className="text-right font-mono">{fmtMoney(row.capital_expenditure)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </main>

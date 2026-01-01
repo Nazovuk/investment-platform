@@ -133,6 +133,8 @@ async def get_portfolio_summary(
             "shares": holding.shares,
             "avg_cost": holding.avg_cost,
             "current_price": round(current_price, 2),
+            "prev_close": round(stock_info.get("previous_close", current_price), 2),
+            "daily_change_pct": round(stock_info.get("change_percent", 0), 2),
             "current_value": round(current_value, 2),
             "gain_loss": round(gain_loss, 2),
             "gain_loss_pct": round(gain_loss_pct, 2)
@@ -145,6 +147,19 @@ async def get_portfolio_summary(
     total_gain_loss = total_value - total_cost
     total_gain_loss_pct = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
     
+    # Calculate total daily change (weighted average)
+    total_daily_change = sum(
+        pos["daily_change_pct"] * pos["weight"] / 100 
+        for pos in positions
+    ) if positions else 0
+    
+    # Calculate daily change in dollars
+    prev_total_value = sum(
+        pos["shares"] * pos["prev_close"] 
+        for pos in positions
+    ) if positions else 0
+    daily_change_value = total_value - prev_total_value
+    
     return {
         "portfolio_id": portfolio_id,
         "name": portfolio.name,
@@ -153,6 +168,8 @@ async def get_portfolio_summary(
         "total_cost": round(total_cost, 2),
         "total_gain_loss": round(total_gain_loss, 2),
         "total_gain_loss_pct": round(total_gain_loss_pct, 2),
+        "daily_change_value": round(daily_change_value, 2),
+        "daily_change_pct": round(total_daily_change, 2),
         "positions": positions,
         "position_count": len(positions)
     }

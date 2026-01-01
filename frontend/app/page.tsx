@@ -32,6 +32,8 @@ interface PortfolioPosition {
     shares: number;
     avg_cost: number;
     current_price: number;
+    prev_close: number;
+    daily_change_pct: number;
     current_value: number;
     gain_loss: number;
     gain_loss_pct: number;
@@ -45,6 +47,8 @@ interface PortfolioSummary {
     total_cost: number;
     total_gain_loss: number;
     total_gain_loss_pct: number;
+    daily_change_value: number;
+    daily_change_pct: number;
     positions: PortfolioPosition[];
     position_count: number;
 }
@@ -260,37 +264,73 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            {/* Stats Cards */}
+            {/* Stats Cards - Enhanced */}
             <div className="stats-grid mb-lg">
-                <div className="stat-card">
-                    <span className="stat-label">Portfolio Value</span>
-                    <span className="stat-value">${portfolioMetrics.totalValue.toLocaleString()}</span>
-                    <span className={`stat-change ${totalGainLoss >= 0 ? 'value-positive' : 'value-negative'}`}>
-                        {totalGainLoss >= 0 ? '↑' : '↓'} {totalGainLossPct.toFixed(2)}% total
+                <div className="stat-card" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.1) 100%)', border: '1px solid rgba(99,102,241,0.3)' }}>
+                    <span className="stat-label">💼 Portfolio Value</span>
+                    <span className="stat-value" style={{ fontSize: '28px' }}>${portfolioMetrics.totalValue.toLocaleString()}</span>
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' }}>Today</span>
+                            <span style={{
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: (portfolio?.daily_change_pct || 0) >= 0 ? '#10b981' : '#ef4444'
+                            }}>
+                                {(portfolio?.daily_change_pct || 0) >= 0 ? '↑' : '↓'} {Math.abs(portfolio?.daily_change_pct || 0).toFixed(2)}%
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' }}>Total</span>
+                            <span style={{
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: totalGainLossPct >= 0 ? '#10b981' : '#ef4444'
+                            }}>
+                                {totalGainLossPct >= 0 ? '↑' : '↓'} {Math.abs(totalGainLossPct).toFixed(2)}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="stat-card" style={{ background: totalGainLoss >= 0 ? 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.1) 100%)' : 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.1) 100%)', border: `1px solid ${totalGainLoss >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                    <span className="stat-label">{totalGainLoss >= 0 ? '📈' : '📉'} Total Gain/Loss</span>
+                    <span className={`stat-value`} style={{ fontSize: '28px', color: totalGainLoss >= 0 ? '#10b981' : '#ef4444' }}>
+                        {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' }}>Today $</span>
+                            <span style={{
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: (portfolio?.daily_change_value || 0) >= 0 ? '#10b981' : '#ef4444'
+                            }}>
+                                {(portfolio?.daily_change_value || 0) >= 0 ? '+' : ''}${(portfolio?.daily_change_value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' }}>Invested</span>
+                            <span style={{ fontSize: '14px', color: '#d1d5db' }}>
+                                ${portfolioMetrics.totalCost.toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="stat-card" style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.15) 0%, rgba(139,92,246,0.1) 100%)', border: '1px solid rgba(168,85,247,0.3)' }}>
+                    <span className="stat-label">📊 Positions</span>
+                    <span className="stat-value" style={{ fontSize: '28px' }}>{portfolioMetrics.positions}</span>
+                    <span className="stat-change text-muted" style={{ marginTop: '8px' }}>
+                        Active holdings in portfolio
                     </span>
                 </div>
 
-                <div className="stat-card">
-                    <span className="stat-label">Total Gain/Loss</span>
-                    <span className={`stat-value ${totalGainLoss >= 0 ? 'value-positive' : 'value-negative'}`}>
-                        {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </span>
-                    <span className="stat-change text-muted">
-                        From ${portfolioMetrics.totalCost.toLocaleString()} invested
-                    </span>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">Positions</span>
-                    <span className="stat-value">{portfolioMetrics.positions}</span>
-                    <span className="stat-change text-muted">Active holdings</span>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">Best Performer</span>
-                    <span className="stat-value">{portfolioMetrics.bestPerformer.symbol}</span>
-                    <span className="stat-change value-positive">
-                        +{portfolioMetrics.bestPerformer.gain.toFixed(1)}%
+                <div className="stat-card" style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(219,39,119,0.1) 100%)', border: '1px solid rgba(236,72,153,0.3)' }}>
+                    <span className="stat-label">🏆 Best Performer</span>
+                    <span className="stat-value" style={{ fontSize: '28px' }}>{portfolioMetrics.bestPerformer.symbol || 'N/A'}</span>
+                    <span className="stat-change" style={{ marginTop: '8px', color: '#10b981', fontWeight: '600' }}>
+                        {portfolioMetrics.bestPerformer.gain > 0 ? `+${portfolioMetrics.bestPerformer.gain.toFixed(1)}%` : 'N/A'}
                     </span>
                 </div>
             </div>
@@ -348,7 +388,7 @@ export default function DashboardPage() {
                 {/* Holdings Table */}
                 <div className="card">
                     <div className="card-header">
-                        <h3 className="card-title">Holdings</h3>
+                        <h3 className="card-title">📋 Holdings</h3>
                         <span className="text-sm text-muted">{portfolio?.position_count || 0} positions</span>
                     </div>
                     <div className="table-container">
@@ -358,8 +398,9 @@ export default function DashboardPage() {
                                     <th>Symbol</th>
                                     <th className="text-right">Shares</th>
                                     <th className="text-right">Price</th>
+                                    <th className="text-right">Today %</th>
                                     <th className="text-right">Value</th>
-                                    <th className="text-right">Gain/Loss</th>
+                                    <th className="text-right">Total Gain</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -382,7 +423,12 @@ export default function DashboardPage() {
                                             <td className="text-right font-mono">{pos.shares}</td>
                                             <td className="text-right font-mono">
                                                 ${pos.current_price.toFixed(2)}
-                                                <span className="text-xs text-muted"> live</span>
+                                            </td>
+                                            <td className="text-right font-mono" style={{
+                                                color: pos.daily_change_pct >= 0 ? '#10b981' : '#ef4444',
+                                                fontWeight: '600'
+                                            }}>
+                                                {pos.daily_change_pct >= 0 ? '+' : ''}{pos.daily_change_pct.toFixed(2)}%
                                             </td>
                                             <td className="text-right font-mono">${pos.current_value.toLocaleString()}</td>
                                             <td className={`text-right font-mono ${pos.gain_loss >= 0 ? 'value-positive' : 'value-negative'}`}>
@@ -392,7 +438,7 @@ export default function DashboardPage() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="text-center text-muted" style={{ padding: '24px' }}>
+                                        <td colSpan={6} className="text-center text-muted" style={{ padding: '24px' }}>
                                             No holdings yet. <a href="/portfolio" style={{ color: '#a855f7' }}>Add your first position →</a>
                                         </td>
                                     </tr>

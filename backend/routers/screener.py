@@ -81,11 +81,26 @@ async def custom_screen(request: ScreenerRequest):
 
 @router.get("/top-picks")
 async def get_top_picks(count: int = Query(10, ge=1, le=50)):
-    """Get top investment picks based on quality filters."""
-    all_stocks = await fetch_all_stocks(DEFAULT_UNIVERSE)
+    """Get top investment picks - optimized for fast loading."""
+    # For dashboard speed: only fetch top 15 quality stocks instead of full universe
+    TOP_QUALITY_STOCKS = [
+        "NVDA", "META", "GOOGL", "LLY", "AMZN", "MSFT", "NFLX", "AMD", "CRM", "UNH",
+        "MA", "V", "JPM", "COST", "AVGO"
+    ]
+    
+    # Fetch only essential stocks for fast response (< 3 seconds)
+    all_stocks = await fetch_all_stocks(TOP_QUALITY_STOCKS)
     sorted_stocks = sorted(all_stocks, key=lambda x: x.get("score", 0), reverse=True)
     results = sorted_stocks[:count]
     return {"count": len(results), "results": results}
+
+
+@router.get("/full")
+async def get_full_screener():
+    """Get full screener with all 200+ stocks - slower but complete."""
+    all_stocks = await fetch_all_stocks(DEFAULT_UNIVERSE)
+    sorted_stocks = sorted(all_stocks, key=lambda x: x.get("score", 0), reverse=True)
+    return {"count": len(sorted_stocks), "results": sorted_stocks}
 
 
 @router.get("/universe")

@@ -178,8 +178,8 @@ export default function AIPage() {
                                 <span className="text-muted">
                                     {recommendations[0].confidence}% confidence
                                 </span>
-                                <span className="value-positive font-bold">
-                                    +{recommendations[0].upside_potential?.toFixed(1) || 0}% upside
+                                <span className={`font-bold ${(recommendations[0].upside_potential ?? 0) >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                    {(recommendations[0].upside_potential ?? 0) >= 0 ? '+' : ''}{recommendations[0].upside_potential?.toFixed(1) || 0}% upside
                                 </span>
                             </div>
                         </div>
@@ -190,7 +190,7 @@ export default function AIPage() {
                             </div>
                             <div>
                                 <div className="text-sm text-muted">Target Price</div>
-                                <div className="stat-value value-positive" style={{ fontSize: '1.25rem' }}>${recommendations[0].target_price?.toFixed(2) || 'N/A'}</div>
+                                <div className={`stat-value ${(recommendations[0].target_price ?? 0) >= (recommendations[0].current_price ?? 0) ? 'value-positive' : 'value-negative'}`} style={{ fontSize: '1.25rem' }}>${recommendations[0].target_price?.toFixed(2) || 'N/A'}</div>
                             </div>
                         </div>
                     </div>
@@ -290,13 +290,13 @@ export default function AIPage() {
                                         </div>
                                         <div>
                                             <div className="text-xs text-muted">Target</div>
-                                            <div className="font-bold value-positive">${rec.target_price?.toFixed(2) || 'N/A'}</div>
+                                            <div className={`font-bold ${(rec.target_price ?? 0) >= (rec.current_price ?? 0) ? 'value-positive' : 'value-negative'}`}>${rec.target_price?.toFixed(2) || 'N/A'}</div>
                                         </div>
                                     </div>
 
                                     <div>
                                         <div className="text-xs text-muted">Upside Potential</div>
-                                        <div className="font-bold value-positive">+{rec.upside_potential?.toFixed(1) || 0}%</div>
+                                        <div className={`font-bold ${(rec.upside_potential ?? 0) >= 0 ? 'value-positive' : 'value-negative'}`}>{(rec.upside_potential ?? 0) >= 0 ? '+' : ''}{rec.upside_potential?.toFixed(1) || 0}%</div>
                                     </div>
 
                                     <div>

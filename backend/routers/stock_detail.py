@@ -168,3 +168,126 @@ async def get_stock_history(
     except Exception as e:
         logger.error(f"Error fetching history for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{symbol}/news")
+async def get_stock_news(symbol: str, limit: int = Query(10, ge=1, le=50)):
+    """Get latest news for a stock."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        news = ticker.news or []
+        
+        # Format news items
+        formatted_news = []
+        for item in news[:limit]:
+            formatted_news.append({
+                "title": item.get("title", ""),
+                "publisher": item.get("publisher", ""),
+                "link": item.get("link", ""),
+                "published": item.get("providerPublishTime", 0),
+                "thumbnail": item.get("thumbnail", {}).get("resolutions", [{}])[0].get("url", "") if item.get("thumbnail") else "",
+                "type": item.get("type", "article"),
+            })
+        
+        return {
+            "symbol": symbol.upper(),
+            "count": len(formatted_news),
+            "news": formatted_news
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching news for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "count": 0, "news": []}
+
+
+@router.get("/{symbol}/earnings")
+async def get_stock_earnings(symbol: str):
+    """Get quarterly earnings data with EPS comparisons."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        
+        # Get quarterly earnings
+        earnings_quarterly = ticker.quarterly_earnings
+        earnings_history = ticker.earnings_history
+        
+        quarters = []
+        if earnings_quarterly is not None and not earnings_quarterly.empty:
+            for idx, row in earnings_quarterly.tail(8).iterrows():
+                quarters.append({
+                    "date": str(idx),
+                    "revenue": row.get("Revenue"),
+                    "earnings": row.get("Earnings"),
+                })
+        
+        # Get EPS history
+        eps_history = []
+        if earnings_history is not None and not earnings_history.empty:
+            for idx, row in earnings_history.tail(8).iterrows():
+                eps_history.append({
+                    "date": str(idx) if hasattr(idx, '__str__') else idx,
+                    "eps_estimate": row.get("epsEstimate"),
+                    "eps_actual": row.get("epsActual"),
+                    "eps_difference": row.get("epsDifference"),
+                    "surprise_pct": row.get("surprisePercent"),
+                })
+        
+        # Get next earnings date
+        earnings_dates = ticker.earnings_dates
+        next_earnings = None
+        if earnings_dates is not None and not earnings_dates.empty:
+            future_dates = earnings_dates[earnings_dates.index > pd.Timestamp.now()]
+            if not future_dates.empty:
+                next_earnings = str(future_dates.index[0])
+        
+        return {
+            "symbol": symbol.upper(),
+            "quarters": quarters,
+            "eps_history": eps_history,
+            "next_earnings": next_earnings,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching earnings for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "quarters": [], "eps_history": [], "next_earnings": None}
+
+
+@router.get("/{symbol}/financials")
+async def get_stock_financials(symbol: str):
+    """Get income statement and cash flow data."""
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        
+        # Get income statement
+        income_stmt = ticker.income_stmt
+        income_data = []
+        if income_stmt is not None and not income_stmt.empty:
+            for col in income_stmt.columns[:4]:  # Last 4 periods
+                data = {"period": str(col.date()) if hasattr(col, 'date') else str(col)}
+                for row_name in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income", "EBITDA"]:
+                    if row_name in income_stmt.index:
+                        val = income_stmt.loc[row_name, col]
+                        data[row_name.lower().replace(" ", "_")] = float(val) if pd.notna(val) else None
+                income_data.append(data)
+        
+        # Get cash flow
+        cash_flow = ticker.cashflow
+        cashflow_data = []
+        if cash_flow is not None and not cash_flow.empty:
+            for col in cash_flow.columns[:4]:  # Last 4 periods
+                data = {"period": str(col.date()) if hasattr(col, 'date') else str(col)}
+                for row_name in ["Operating Cash Flow", "Free Cash Flow", "Capital Expenditure"]:
+                    if row_name in cash_flow.index:
+                        val = cash_flow.loc[row_name, col]
+                        data[row_name.lower().replace(" ", "_")] = float(val) if pd.notna(val) else None
+                cashflow_data.append(data)
+        
+        return {
+            "symbol": symbol.upper(),
+            "income_statement": income_data,
+            "cash_flow": cashflow_data,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching financials for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "income_statement": [], "cash_flow": []}
+

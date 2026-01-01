@@ -26,26 +26,40 @@ interface Currency {
     change_percent: number;
 }
 
-// Mock holdings (would come from portfolio API in full implementation)
-const mockHoldings = [
-    { symbol: 'AAPL', shares: 50, avgCost: 175.00 },
-    { symbol: 'MSFT', shares: 30, avgCost: 380.00 },
-    { symbol: 'GOOGL', shares: 25, avgCost: 140.00 },
-    { symbol: 'NVDA', shares: 15, avgCost: 450.00 },
-    { symbol: 'AMZN', shares: 40, avgCost: 155.00 },
-];
+interface PortfolioPosition {
+    symbol: string;
+    name: string;
+    shares: number;
+    avg_cost: number;
+    current_price: number;
+    current_value: number;
+    gain_loss: number;
+    gain_loss_pct: number;
+    weight: number;
+}
+
+interface PortfolioSummary {
+    portfolio_id: number;
+    name: string;
+    total_value: number;
+    total_cost: number;
+    total_gain_loss: number;
+    total_gain_loss_pct: number;
+    positions: PortfolioPosition[];
+    position_count: number;
+}
 
 export default function DashboardPage() {
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [topPicks, setTopPicks] = useState<Stock[]>([]);
-    const [holdings, setHoldings] = useState(mockHoldings);
+    const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [indices, setIndices] = useState<MarketIndex[]>([]);
     const [currencies, setCurrencies] = useState<Currency[]>([]);
 
-    // Fetch live stock data
+    // Fetch live stock data and portfolio
     const fetchData = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -53,14 +67,24 @@ export default function DashboardPage() {
             // Fetch top picks from screener
             const response = await screenerApi.getTopPicks(10);
             setTopPicks(response.results || []);
+            setStocks(response.results || []);
 
-            // Get stock data for holdings
-            const holdingSymbols = holdings.map(h => h.symbol);
-            const allStocks = response.results || [];
-
-            // Update holdings with current prices
-            const updatedStocks = allStocks.filter(s => holdingSymbols.includes(s.symbol));
-            setStocks(updatedStocks);
+            // Fetch real portfolio data
+            try {
+                const portfolioRes = await fetch(`${API_URL}/api/portfolio`);
+                if (portfolioRes.ok) {
+                    const portfolioData = await portfolioRes.json();
+                    if (portfolioData.portfolios && portfolioData.portfolios.length > 0) {
+                        const summaryRes = await fetch(`${API_URL}/api/portfolio/${portfolioData.portfolios[0].id}/summary`);
+                        if (summaryRes.ok) {
+                            const summary = await summaryRes.json();
+                            setPortfolio(summary);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Portfolio fetch failed:', e);
+            }
 
             // Fetch market data
             try {
@@ -80,7 +104,7 @@ export default function DashboardPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [holdings]);
+    }, []);
 
     // Initial fetch
     useEffect(() => {
@@ -95,37 +119,26 @@ export default function DashboardPage() {
         return () => clearInterval(interval);
     }, [autoRefresh, fetchData]);
 
-    // Calculate portfolio metrics
+    // Portfolio metrics from real data
     const portfolioMetrics = {
-        totalValue: holdings.reduce((sum, h) => {
-            const stock = stocks.find(s => s.symbol === h.symbol);
-            const price = stock?.current_price || h.avgCost;
-            return sum + (h.shares * price);
-        }, 0),
-        totalCost: holdings.reduce((sum, h) => sum + (h.shares * h.avgCost), 0),
-        positions: holdings.length,
-        bestPerformer: stocks.length > 0
-            ? stocks.reduce((best, s) => {
-                const holding = holdings.find(h => h.symbol === s.symbol);
-                if (!holding) return best;
-                const gain = ((s.current_price - holding.avgCost) / holding.avgCost) * 100;
-                return gain > (best.gain || 0) ? { symbol: s.symbol, gain } : best;
-            }, { symbol: '', gain: 0 })
+        totalValue: portfolio?.total_value || 0,
+        totalCost: portfolio?.total_cost || 0,
+        positions: portfolio?.position_count || 0,
+        bestPerformer: portfolio?.positions?.length
+            ? portfolio.positions.reduce((best, p) =>
+                p.gain_loss_pct > (best.gain || 0) ? { symbol: p.symbol, gain: p.gain_loss_pct } : best
+                , { symbol: '', gain: 0 })
             : { symbol: 'N/A', gain: 0 }
     };
 
-    portfolioMetrics.totalValue = portfolioMetrics.totalValue || 125420.50; // Fallback
-    const totalGainLoss = portfolioMetrics.totalValue - portfolioMetrics.totalCost;
-    const totalGainLossPct = portfolioMetrics.totalCost > 0
-        ? ((totalGainLoss / portfolioMetrics.totalCost) * 100)
-        : 0;
+    const totalGainLoss = portfolio?.total_gain_loss || 0;
+    const totalGainLossPct = portfolio?.total_gain_loss_pct || 0;
 
-    // Pie chart data based on holdings and current prices
-    const chartData = holdings.map(h => {
-        const stock = stocks.find(s => s.symbol === h.symbol);
-        const value = h.shares * (stock?.current_price || h.avgCost);
-        return { symbol: h.symbol, value };
-    });
+    // Pie chart data from real portfolio
+    const chartData = portfolio?.positions?.map(p => ({
+        symbol: p.symbol,
+        value: p.current_value
+    })) || [];
 
     const chartColors = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'];
 
@@ -336,7 +349,7 @@ export default function DashboardPage() {
                 <div className="card">
                     <div className="card-header">
                         <h3 className="card-title">Holdings</h3>
-                        <span className="text-sm text-muted">{holdings.length} positions</span>
+                        <span className="text-sm text-muted">{portfolio?.position_count || 0} positions</span>
                     </div>
                     <div className="table-container">
                         <table className="data-table">
@@ -350,41 +363,40 @@ export default function DashboardPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {holdings.map((holding) => {
-                                    const stock = stocks.find(s => s.symbol === holding.symbol);
-                                    const currentPrice = stock?.current_price || holding.avgCost;
-                                    const value = holding.shares * currentPrice;
-                                    const costBasis = holding.shares * holding.avgCost;
-                                    const gainLoss = value - costBasis;
-                                    const gainLossPct = ((currentPrice - holding.avgCost) / holding.avgCost) * 100;
-
-                                    return (
-                                        <tr key={holding.symbol}>
+                                {portfolio?.positions?.length ? (
+                                    portfolio.positions.map((pos) => (
+                                        <tr key={pos.symbol}>
                                             <td>
                                                 <button
                                                     onClick={() => {
                                                         const w = 1200, h = 800;
                                                         const left = (window.screen.width - w) / 2;
                                                         const top = (window.screen.height - h) / 2;
-                                                        window.open(`/stock/${holding.symbol}`, `stock_${holding.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                                        window.open(`/stock/${pos.symbol}`, `stock_${pos.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
                                                     }}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a855f7', fontWeight: 'bold', padding: 0 }}
                                                 >
-                                                    {holding.symbol} ↗
+                                                    {pos.symbol} ↗
                                                 </button>
                                             </td>
-                                            <td className="text-right font-mono">{holding.shares}</td>
+                                            <td className="text-right font-mono">{pos.shares}</td>
                                             <td className="text-right font-mono">
-                                                ${currentPrice.toFixed(2)}
-                                                {stock && <span className="text-xs text-muted"> live</span>}
+                                                ${pos.current_price.toFixed(2)}
+                                                <span className="text-xs text-muted"> live</span>
                                             </td>
-                                            <td className="text-right font-mono">${value.toLocaleString()}</td>
-                                            <td className={`text-right font-mono ${gainLoss >= 0 ? 'value-positive' : 'value-negative'}`}>
-                                                {gainLoss >= 0 ? '+' : ''}{gainLossPct.toFixed(1)}%
+                                            <td className="text-right font-mono">${pos.current_value.toLocaleString()}</td>
+                                            <td className={`text-right font-mono ${pos.gain_loss >= 0 ? 'value-positive' : 'value-negative'}`}>
+                                                {pos.gain_loss >= 0 ? '+' : ''}{pos.gain_loss_pct.toFixed(1)}%
                                             </td>
                                         </tr>
-                                    );
-                                })}
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="text-center text-muted" style={{ padding: '24px' }}>
+                                            No holdings yet. <a href="/portfolio" style={{ color: '#a855f7' }}>Add your first position →</a>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

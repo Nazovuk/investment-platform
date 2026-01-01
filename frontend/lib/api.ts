@@ -1,5 +1,5 @@
 /**
- * API client for NazovHybrid backend
+ * API client for NazovInvest backend
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

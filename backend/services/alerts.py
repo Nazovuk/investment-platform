@@ -350,7 +350,7 @@ class EmailAlertsService:
                 </div>
                 
                 <div class="footer">
-                    <p>This alert was sent by NazovHybrid Investment Platform.</p>
+                    <p>This alert was sent by NazovInvest Investment Platform.</p>
                     <p>Alert created: {alert.created_at.strftime('%Y-%m-%d %H:%M') if alert.created_at else 'N/A'}</p>
                 </div>
             </div>
@@ -373,7 +373,7 @@ Target Price: ${alert.target_value:.2f}
 Fair Value: ${stock.get('fair_value', 0):.2f}
 
 ---
-This alert was sent by NazovHybrid Investment Platform.
+This alert was sent by NazovInvest Investment Platform.
         """
     
     def get_alert_stats(self, user_id: int) -> Dict[str, Any]:

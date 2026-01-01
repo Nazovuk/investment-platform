@@ -1,5 +1,5 @@
 """
-NazovHybrid Investment Platform - FastAPI Backend
+NazovInvest Investment Platform - FastAPI Backend
 Hedge fund-style portfolio management API
 """
 
@@ -17,14 +17,14 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown events."""
     # Startup: Create database tables
     Base.metadata.create_all(bind=engine)
-    print("🚀 NazovHybrid API is starting up...")
+    print("🚀 NazovInvest API is starting up...")
     yield
     # Shutdown
-    print("👋 NazovHybrid API is shutting down...")
+    print("👋 NazovInvest API is shutting down...")
 
 
 app = FastAPI(
-    title="NazovHybrid Investment Platform",
+    title="NazovInvest Investment Platform",
     description="Hedge fund-style portfolio management and stock screening API",
     version="8.0.0",
     lifespan=lifespan
@@ -58,7 +58,7 @@ app.include_router(market.router, prefix="/api/market", tags=["Market Data"])
 async def root():
     """Root endpoint - API info."""
     return {
-        "name": "NazovHybrid Investment Platform",
+        "name": "NazovInvest Investment Platform",
         "version": "8.0.0",
         "status": "operational",
         "docs": "/docs"

@@ -1,4 +1,4 @@
-# NazovHybrid Investment Platform v6.5
+# NazovInvest Investment Platform v6.5
 
 🚀 **Hedge fund-style portfolio management and stock screening platform**
 

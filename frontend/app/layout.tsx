@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-    title: 'NazovHybrid | Investment Platform',
+    title: 'NazovInvest | Investment Platform',
     description: 'Hedge fund-style portfolio management and stock screening platform',
     keywords: ['investment', 'portfolio', 'stocks', 'screener', 'backtest', 'optimizer'],
     viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
@@ -43,7 +43,7 @@ function MobileHeader() {
     return (
         <header className="mobile-header">
             <div className="mobile-header-content">
-                <span className="mobile-logo">NazovHybrid</span>
+                <span className="mobile-logo">NazovInvest</span>
                 <a href="/ai" className="btn btn-ghost" style={{ padding: '8px' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
@@ -117,7 +117,7 @@ function Sidebar() {
                         </linearGradient>
                     </defs>
                 </svg>
-                <h1>NazovHybrid</h1>
+                <h1>NazovInvest</h1>
             </div>
 
             <nav>

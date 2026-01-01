@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { exportToCSV, copyToClipboard, ExportColumn } from '@/lib/export';
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
@@ -366,9 +367,53 @@ export default function OptimizerPage() {
 
                             {/* Allocation Table */}
                             <div className="card">
-                                <div className="card-header">
-                                    <h3 className="card-title">Recommended Allocation</h3>
-                                    <span className="text-sm text-muted">Total: ${investmentAmount.toLocaleString()}</span>
+                                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h3 className="card-title">Recommended Allocation</h3>
+                                        <span className="text-sm text-muted">Total: ${investmentAmount.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => {
+                                                const columns: ExportColumn[] = [
+                                                    { key: 'symbol', label: 'Symbol' },
+                                                    { key: 'name', label: 'Name' },
+                                                    { key: 'weight', label: 'Weight %' },
+                                                    { key: 'amount', label: 'Amount' },
+                                                    { key: 'shares', label: 'Shares' },
+                                                    { key: 'price', label: 'Price' },
+                                                ];
+                                                exportToCSV(result.allocations as unknown as Record<string, unknown>[], columns, 'optimized_allocation');
+                                            }}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                background: 'rgba(99,102,241,0.2)', color: '#a5b4fc',
+                                                border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            📥 CSV
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                const columns: ExportColumn[] = [
+                                                    { key: 'symbol', label: 'Symbol' },
+                                                    { key: 'name', label: 'Name' },
+                                                    { key: 'weight', label: 'Weight %' },
+                                                    { key: 'amount', label: 'Amount' },
+                                                    { key: 'shares', label: 'Shares' },
+                                                ];
+                                                const success = await copyToClipboard(result.allocations as unknown as Record<string, unknown>[], columns);
+                                                if (success) alert('Copied to clipboard! Paste into Excel or Google Sheets.');
+                                            }}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                background: 'rgba(16,185,129,0.2)', color: '#6ee7b7',
+                                                border: '1px solid rgba(16,185,129,0.3)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="table-container">
                                     <table className="data-table">

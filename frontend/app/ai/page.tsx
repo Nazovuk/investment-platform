@@ -283,9 +283,15 @@ export default function AIPage() {
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-xs text-muted">Target Price</div>
-                                        <div className="font-bold">${rec.target_price?.toFixed(2) || 'N/A'}</div>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-lg)' }}>
+                                        <div>
+                                            <div className="text-xs text-muted">Current</div>
+                                            <div className="font-bold">${rec.current_price?.toFixed(2) || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted">Target</div>
+                                            <div className="font-bold value-positive">${rec.target_price?.toFixed(2) || 'N/A'}</div>
+                                        </div>
                                     </div>
 
                                     <div>

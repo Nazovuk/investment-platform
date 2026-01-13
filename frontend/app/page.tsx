@@ -62,6 +62,16 @@ export default function DashboardPage() {
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [indices, setIndices] = useState<MarketIndex[]>([]);
     const [currencies, setCurrencies] = useState<Currency[]>([]);
+    const [economicEvents, setEconomicEvents] = useState<{
+        date: string;
+        time: string;
+        country: string;
+        event: string;
+        impact: string;
+        expected: number | null;
+        actual: number | null;
+        previous: number | null;
+    }[]>([]);
 
     // Fetch live stock data and portfolio
     const fetchData = useCallback(async () => {
@@ -100,6 +110,17 @@ export default function DashboardPage() {
                 }
             } catch (e) {
                 console.warn('Market data fetch failed:', e);
+            }
+
+            // Fetch economic calendar
+            try {
+                const econRes = await fetch(`${API_URL}/api/economic/calendar?days=14`);
+                if (econRes.ok) {
+                    const econData = await econRes.json();
+                    setEconomicEvents(econData.events || []);
+                }
+            } catch (e) {
+                console.warn('Economic calendar fetch failed:', e);
             }
 
             setLastUpdate(new Date());
@@ -521,6 +542,77 @@ export default function DashboardPage() {
                                 )}
                             </div>
                         ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Economic Calendar Section */}
+            <div className="card mt-lg">
+                <div className="card-header">
+                    <h3 className="card-title">📅 Economic Calendar</h3>
+                    <span className="badge">Next 14 days</span>
+                </div>
+                {economicEvents.length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table" style={{ width: '100%', minWidth: '600px' }}>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Country</th>
+                                    <th>Event</th>
+                                    <th>Impact</th>
+                                    <th className="text-right">Expected</th>
+                                    <th className="text-right">Previous</th>
+                                    <th className="text-right">Actual</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {economicEvents.slice(0, 15).map((evt, idx) => (
+                                    <tr key={idx}>
+                                        <td style={{ whiteSpace: 'nowrap' }}>{evt.date}</td>
+                                        <td>{evt.time || '-'}</td>
+                                        <td>
+                                            <span className="badge" style={{ background: 'rgba(100,100,100,0.3)' }}>
+                                                {evt.country || 'US'}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontWeight: evt.impact === 'high' ? 600 : 400 }}>{evt.event}</td>
+                                        <td>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                padding: '2px 8px',
+                                                borderRadius: '4px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                background: evt.impact === 'high' ? 'rgba(239,68,68,0.2)' :
+                                                    evt.impact === 'medium' ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)',
+                                                color: evt.impact === 'high' ? '#ef4444' :
+                                                    evt.impact === 'medium' ? '#f59e0b' : '#10b981'
+                                            }}>
+                                                {(evt.impact || 'low').toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td className="text-right font-mono">
+                                            {evt.expected !== null ? evt.expected : '-'}
+                                        </td>
+                                        <td className="text-right font-mono">
+                                            {evt.previous !== null ? evt.previous : '-'}
+                                        </td>
+                                        <td className="text-right font-mono" style={{
+                                            fontWeight: 600,
+                                            color: evt.actual !== null ? (evt.expected && evt.actual > evt.expected ? '#10b981' : evt.expected && evt.actual < evt.expected ? '#ef4444' : '#f8fafc') : '#94a3b8'
+                                        }}>
+                                            {evt.actual !== null ? evt.actual : 'Pending'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="text-center text-muted" style={{ padding: 'var(--spacing-lg)' }}>
+                        <p>📊 No economic events in the next 14 days</p>
                     </div>
                 )}
             </div>

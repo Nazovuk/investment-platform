@@ -126,22 +126,61 @@ async def refresh_token(user: User = Depends(require_auth)):
 async def get_oauth_providers():
     """
     Get available OAuth providers for social login.
+    
+    Note: OAuth is disabled in MVP (FREE-FIRST).
+    Email/password auth is the only supported method.
     """
     return {
-        "providers": [
-            {
-                "id": "google",
-                "name": "Google",
-                "icon": "google",
-                "available": bool(auth_service._users)  # Placeholder
-            },
-            {
-                "id": "github",
-                "name": "GitHub",
-                "icon": "github",
-                "available": bool(auth_service._users)  # Placeholder
-            }
-        ]
+        "providers": [],
+        "message": "OAuth providers are disabled in MVP. Use email/password authentication."
+    }
+
+
+from pydantic import BaseModel
+from typing import Literal
+
+class UserPreferencesUpdate(BaseModel):
+    """User preferences update schema."""
+    preferred_locale: Literal["en-GB", "tr-TR"] | None = None
+    preferred_reporting_currency: Literal["GBP", "USD", "EUR", "TRY"] | None = None
+
+
+@router.patch("/me/preferences")
+async def update_user_preferences(
+    preferences: UserPreferencesUpdate,
+    user: User = Depends(require_auth)
+):
+    """
+    Update user preferences (locale and reporting currency).
+    """
+    updated_fields = {}
+    
+    if preferences.preferred_locale:
+        updated_fields["preferred_locale"] = preferences.preferred_locale
+    
+    if preferences.preferred_reporting_currency:
+        updated_fields["preferred_reporting_currency"] = preferences.preferred_reporting_currency
+    
+    if not updated_fields:
+        return {
+            "code": "NO_CHANGES",
+            "message": "No preference fields provided",
+            "details": {}
+        }
+    
+    # Update user preferences (in-memory for MVP)
+    for key, value in updated_fields.items():
+        setattr(user, key, value)
+    
+    return {
+        "success": True,
+        "message": "Preferences updated",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "preferred_locale": getattr(user, "preferred_locale", "en-GB"),
+            "preferred_reporting_currency": getattr(user, "preferred_reporting_currency", "GBP")
+        }
     }
 
 
@@ -154,3 +193,4 @@ async def logout(user: User = Depends(require_auth)):
         "success": True,
         "message": "Logged out successfully"
     }
+

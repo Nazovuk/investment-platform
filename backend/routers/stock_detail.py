@@ -437,3 +437,82 @@ async def get_stock_financials(symbol: str):
         logger.error(f"Error fetching financials for {symbol}: {e}")
         return {"symbol": symbol.upper(), "income_statement": [], "cash_flow": []}
 
+
+@router.get("/{symbol}/valuation")
+async def get_stock_valuation(symbol: str):
+    """
+    Get deterministic fair value calculation for a stock.
+    
+    Uses relative valuation based on:
+    - P/E vs sector average
+    - EV/EBITDA vs sector average
+    - Revenue growth adjustment
+    - Margin quality adjustment
+    
+    ❌ NOT investment advice
+    ❌ NOT a target price
+    """
+    from services.fair_value import calculate_fair_value, get_valuation_explanation
+    
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+        
+        if not info or len(info) < 5:
+            return {
+                "code": "STOCK_NOT_FOUND",
+                "message": f"Stock {symbol} not found",
+                "details": {}
+            }
+        
+        current_price = info.get("currentPrice", info.get("regularMarketPrice", 0))
+        
+        if not current_price or current_price <= 0:
+            return {
+                "code": "FAIR_VALUE_NOT_AVAILABLE",
+                "message": "Insufficient data to calculate fair value",
+                "details": {"reason": "Missing current price"}
+            }
+        
+        # Extract needed metrics
+        pe_ratio = info.get("trailingPE")
+        ev_ebitda = info.get("enterpriseToEbitda")
+        revenue_growth = info.get("revenueGrowth")
+        profit_margin = info.get("profitMargins")
+        sector = info.get("sector", "Unknown")
+        eps = info.get("trailingEps")
+        
+        # Calculate fair value
+        result = calculate_fair_value(
+            ticker=symbol.upper(),
+            current_price=current_price,
+            pe_ratio=pe_ratio,
+            ev_ebitda=ev_ebitda,
+            revenue_growth=revenue_growth,
+            net_margin=profit_margin,
+            sector=sector,
+            eps=eps
+        )
+        
+        # Add explanation
+        result["explanation"] = get_valuation_explanation(result)
+        
+        # Add source data for transparency
+        result["source_data"] = {
+            "pe_ratio": pe_ratio,
+            "ev_ebitda": ev_ebitda,
+            "revenue_growth": round(revenue_growth * 100, 2) if revenue_growth else None,
+            "profit_margin": round(profit_margin * 100, 2) if profit_margin else None,
+            "sector": sector,
+            "eps": eps
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating valuation for {symbol}: {e}")
+        return {
+            "code": "VALUATION_ERROR",
+            "message": "Error calculating fair value",
+            "details": {"error": str(e)}
+        }

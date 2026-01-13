@@ -99,7 +99,27 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [period, setPeriod] = useState('6mo');
-    const [activeView, setActiveView] = useState<'chart' | 'fundamentals' | 'news' | 'earnings' | 'financials'>('chart');
+    const [activeView, setActiveView] = useState<'chart' | 'fundamentals' | 'news' | 'earnings' | 'financials' | 'valuation'>('chart');
+    const [valuation, setValuation] = useState<{
+        ticker: string;
+        current_price: number;
+        fair_value: number;
+        upside_pct: number;
+        status: string;
+        methodology: {
+            sector: string;
+            pe_vs_sector: number | null;
+            ev_ebitda_vs_sector: number | null;
+            adjustments: {
+                pe_adj: number;
+                ev_ebitda_adj: number;
+                growth_adj: number;
+                margin_adj: number;
+                total_adj: number;
+            };
+        };
+        disclaimers: string[];
+    } | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -107,12 +127,13 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
             setError(null);
 
             try {
-                const [detailRes, historyRes, newsRes, earningsRes, financialsRes] = await Promise.all([
+                const [detailRes, historyRes, newsRes, earningsRes, financialsRes, valuationRes] = await Promise.all([
                     fetch(`${API_URL}/api/stock/${symbol}`),
                     fetch(`${API_URL}/api/stock/${symbol}/history?period=${period}`),
                     fetch(`${API_URL}/api/stock/${symbol}/news`),
                     fetch(`${API_URL}/api/stock/${symbol}/earnings`),
-                    fetch(`${API_URL}/api/stock/${symbol}/financials`)
+                    fetch(`${API_URL}/api/stock/${symbol}/financials`),
+                    fetch(`${API_URL}/api/stock/${symbol}/valuation`)
                 ]);
 
                 if (detailRes.ok) {
@@ -137,6 +158,13 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
 
                 if (financialsRes.ok) {
                     setFinancials(await financialsRes.json());
+                }
+
+                if (valuationRes.ok) {
+                    const valData = await valuationRes.json();
+                    if (!valData.code) { // No error
+                        setValuation(valData);
+                    }
                 }
             } catch (err) {
                 setError('Failed to load stock data');
@@ -309,6 +337,10 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                     </TabButton>
                     <TabButton active={activeView === 'financials'} onClick={() => setActiveView('financials')}>
                         📊 Financials
+                    </TabButton>
+                    <TabButton active={activeView === 'valuation'} onClick={() => setActiveView('valuation')}>
+                        <Target style={{ width: '16px', height: '16px', marginRight: '8px' }} />
+                        Valuation
                     </TabButton>
                 </div>
             </div>
@@ -803,6 +835,112 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Valuation Tab */}
+                {activeView === 'valuation' && (
+                    <div className="card" style={{ padding: '24px' }}>
+                        {valuation ? (
+                            <div>
+                                {/* Fair Value Summary */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+                                    <div style={{ background: 'rgba(168, 85, 247, 0.1)', borderRadius: '12px', padding: '20px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '8px' }}>Fair Value</div>
+                                        <div style={{ fontSize: '2rem', fontWeight: '700', color: '#a855f7' }}>
+                                            ${valuation.fair_value.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', padding: '20px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '8px' }}>Current Price</div>
+                                        <div style={{ fontSize: '2rem', fontWeight: '700', color: '#10b981' }}>
+                                            ${valuation.current_price.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        background: valuation.upside_pct >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                        borderRadius: '12px', padding: '20px',
+                                        border: `1px solid ${valuation.upside_pct >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                    }}>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '8px' }}>Upside/Downside</div>
+                                        <div style={{ fontSize: '2rem', fontWeight: '700', color: valuation.upside_pct >= 0 ? '#10b981' : '#ef4444' }}>
+                                            {valuation.upside_pct >= 0 ? '+' : ''}{valuation.upside_pct.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        background: valuation.status === 'UNDERVALUED' ? 'rgba(16, 185, 129, 0.1)' : valuation.status === 'OVERVALUED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                        borderRadius: '12px', padding: '20px',
+                                        border: `1px solid ${valuation.status === 'UNDERVALUED' ? 'rgba(16, 185, 129, 0.2)' : valuation.status === 'OVERVALUED' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                                    }}>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '8px' }}>Status</div>
+                                        <div style={{
+                                            fontSize: '1.25rem', fontWeight: '700',
+                                            color: valuation.status === 'UNDERVALUED' ? '#10b981' : valuation.status === 'OVERVALUED' ? '#ef4444' : '#f59e0b'
+                                        }}>
+                                            {valuation.status.replace('_', ' ')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Methodology Breakdown */}
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#f8fafc' }}>
+                                    📊 Methodology Breakdown
+                                </h3>
+                                <div style={{ background: 'rgba(26, 26, 38, 0.6)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                                        <div>
+                                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Sector</span>
+                                            <div style={{ fontWeight: '500' }}>{valuation.methodology.sector}</div>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>P/E vs Sector</span>
+                                            <div style={{ fontWeight: '500', color: (valuation.methodology.pe_vs_sector || 0) < 1 ? '#10b981' : '#ef4444' }}>
+                                                {valuation.methodology.pe_vs_sector ? `${valuation.methodology.pe_vs_sector.toFixed(2)}x` : 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>EV/EBITDA vs Sector</span>
+                                            <div style={{ fontWeight: '500', color: (valuation.methodology.ev_ebitda_vs_sector || 0) < 1 ? '#10b981' : '#ef4444' }}>
+                                                {valuation.methodology.ev_ebitda_vs_sector ? `${valuation.methodology.ev_ebitda_vs_sector.toFixed(2)}x` : 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '16px 0' }} />
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                                        {[
+                                            { label: 'P/E Adjustment', value: valuation.methodology.adjustments.pe_adj },
+                                            { label: 'EV/EBITDA Adj', value: valuation.methodology.adjustments.ev_ebitda_adj },
+                                            { label: 'Growth Adj', value: valuation.methodology.adjustments.growth_adj },
+                                            { label: 'Margin Adj', value: valuation.methodology.adjustments.margin_adj },
+                                            { label: 'Total Adj', value: valuation.methodology.adjustments.total_adj },
+                                        ].map(({ label, value }) => (
+                                            <div key={label}>
+                                                <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{label}</span>
+                                                <div style={{ fontWeight: '600', color: value >= 0 ? '#10b981' : '#ef4444' }}>
+                                                    {value >= 0 ? '+' : ''}{value.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Disclaimers */}
+                                <div style={{ background: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                    <div style={{ fontWeight: '600', color: '#f59e0b', marginBottom: '8px', fontSize: '0.875rem' }}>⚠️ Important Disclaimers</div>
+                                    <ul style={{ margin: 0, paddingLeft: '20px', color: '#d1d5db', fontSize: '0.8rem' }}>
+                                        {valuation.disclaimers.map((d, i) => (
+                                            <li key={i} style={{ marginBottom: '4px' }}>{d}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '48px' }}>
+                                <Target style={{ width: '48px', height: '48px', margin: '0 auto 16px', opacity: 0.5 }} />
+                                <p>Fair value calculation not available for this stock.</p>
+                                <p style={{ fontSize: '0.875rem', marginTop: '8px' }}>Insufficient data to perform valuation.</p>
                             </div>
                         )}
                     </div>

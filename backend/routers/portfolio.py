@@ -233,7 +233,7 @@ async def add_transaction(
         transaction_type=transaction.transaction_type,
         shares=transaction.shares,
         price=transaction.price,
-        currency=transaction.currency
+        trade_currency=transaction.currency
     )
     db.add(db_transaction)
     

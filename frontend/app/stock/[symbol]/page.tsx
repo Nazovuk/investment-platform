@@ -386,21 +386,51 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
                                             name: symbol,
                                             increasing: { line: { color: '#22c55e' } },
                                             decreasing: { line: { color: '#ef4444' } },
+                                            yaxis: 'y2',
                                         },
-                                        { type: 'scatter', mode: 'lines', x: history.map(d => d.date), y: history.map(d => d.sma20), name: 'SMA 20', line: { color: '#eab308', width: 1.5 } },
-                                        { type: 'scatter', mode: 'lines', x: history.map(d => d.date), y: history.map(d => d.sma50), name: 'SMA 50', line: { color: '#3b82f6', width: 1.5 } },
+                                        { type: 'scatter', mode: 'lines', x: history.map(d => d.date), y: history.map(d => d.sma20), name: 'SMA 20', line: { color: '#eab308', width: 1.5 }, yaxis: 'y2' },
+                                        { type: 'scatter', mode: 'lines', x: history.map(d => d.date), y: history.map(d => d.sma50), name: 'SMA 50', line: { color: '#3b82f6', width: 1.5 }, yaxis: 'y2' },
+                                        { type: 'scatter', mode: 'lines', x: history.map(d => d.date), y: history.map(d => d.sma200), name: 'SMA 200', line: { color: '#a855f7', width: 2 }, yaxis: 'y2' },
+                                        {
+                                            type: 'bar',
+                                            x: history.map(d => d.date),
+                                            y: history.map(d => d.volume),
+                                            name: 'Volume',
+                                            marker: {
+                                                color: history.map((d, i) => i > 0 && d.close >= history[i - 1].close ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)')
+                                            },
+                                            yaxis: 'y',
+                                        },
                                     ]}
                                     layout={{
-                                        autosize: true, height: 450,
-                                        margin: { l: 50, r: 50, t: 30, b: 50 },
+                                        autosize: true, height: 550,
+                                        margin: { l: 60, r: 60, t: 30, b: 50 },
                                         paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
                                         font: { color: '#9ca3af' },
                                         xaxis: { gridcolor: 'rgba(255,255,255,0.04)', rangeslider: { visible: false } },
-                                        yaxis: { gridcolor: 'rgba(255,255,255,0.04)', side: 'right' },
-                                        legend: { orientation: 'h', y: 1.05, x: 0.5, xanchor: 'center' },
+                                        yaxis: {
+                                            gridcolor: 'rgba(255,255,255,0.04)',
+                                            domain: [0, 0.2],
+                                            title: 'Volume',
+                                            showticklabels: true,
+                                        },
+                                        yaxis2: {
+                                            gridcolor: 'rgba(255,255,255,0.04)',
+                                            side: 'right',
+                                            domain: [0.25, 1],
+                                            title: 'Price',
+                                        },
+                                        legend: { orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center' },
+                                        showlegend: true,
                                     }}
-                                    config={{ displayModeBar: false, responsive: true }}
-                                    style={{ width: '100%' }}
+                                    config={{ displayModeBar: true, responsive: true, modeBarButtonsToAdd: ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape'] }}
+                                    style={{ width: '100%', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        const w = 1400, h = 900;
+                                        const left = (window.screen.width - w) / 2;
+                                        const top = (window.screen.height - h) / 2;
+                                        window.open(`/stock/${symbol}?view=chart`, `chart_${symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                    }}
                                 />
                             ) : (
                                 <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>

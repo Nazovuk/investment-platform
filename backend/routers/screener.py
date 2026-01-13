@@ -14,7 +14,8 @@ router = APIRouter()
 
 class ScreenerRequest(BaseModel):
     """Request body for custom screening."""
-    max_pe: Optional[float] = 100
+    min_pe: Optional[float] = None  # Minimum P/E ratio
+    max_pe: Optional[float] = 500  # Maximum P/E ratio (expanded to 500)
     max_peg: Optional[float] = 5.0
     min_revenue_growth: Optional[float] = None
     min_upside: Optional[float] = None
@@ -24,22 +25,27 @@ class ScreenerRequest(BaseModel):
 
 @router.get("/")
 async def get_screener_results(
-    max_pe: Optional[float] = Query(100, description="Maximum P/E ratio"),
+    min_pe: Optional[float] = Query(None, description="Minimum P/E ratio"),
+    max_pe: Optional[float] = Query(500, description="Maximum P/E ratio (up to 500)"),
     max_peg: Optional[float] = Query(5.0, description="Maximum PEG ratio"),
     min_revenue_growth: Optional[float] = Query(None, description="Minimum revenue growth (0.10 = 10%)"),
     min_upside: Optional[float] = Query(None, description="Minimum upside potential (%)"),
-    min_score: Optional[int] = Query(0, description="Minimum investment score (0-100)")
+    min_score: Optional[int] = Query(0, description="Minimum investment score (0-100)"),
+    sector: Optional[str] = Query(None, description="Filter by sector")
 ):
     """
     Get screened stocks based on filters.
     Uses async concurrent requests for fast response.
     """
+    sectors = [sector] if sector else None
     filters = ScreenerFilters(
+        min_pe=min_pe,
         max_pe=max_pe,
         max_peg=max_peg,
         min_revenue_growth=min_revenue_growth,
         min_upside=min_upside,
-        min_score=min_score
+        min_score=min_score,
+        sectors=sectors
     )
     
     results = await screen_stocks(filters)

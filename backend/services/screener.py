@@ -203,7 +203,8 @@ CACHE_TIMEOUT = 120  # 2 minutes
 @dataclass
 class ScreenerFilters:
     """Screener filter criteria."""
-    max_pe: Optional[float] = 100
+    min_pe: Optional[float] = None  # Minimum P/E ratio for high-PE searches
+    max_pe: Optional[float] = 500   # Expanded to 500 for growth stocks
     max_peg: Optional[float] = 5.0
     min_upside: Optional[float] = None
     min_score: Optional[int] = 0
@@ -459,8 +460,15 @@ async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
 
 def passes_filters(stock: Dict[str, Any], filters: ScreenerFilters) -> bool:
     """Check if stock passes all filters."""
+    pe = stock.get("pe_ratio")
+    
+    # Min P/E filter (for finding high-PE growth stocks)
+    if filters.min_pe is not None:
+        if pe is None or pe < filters.min_pe:
+            return False
+    
+    # Max P/E filter
     if filters.max_pe is not None:
-        pe = stock.get("pe_ratio")
         if pe is not None and (pe > filters.max_pe or pe < 0):
             return False
     

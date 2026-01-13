@@ -202,7 +202,8 @@ async def screen_stocks(filters: ScreenerFilters) -> List[Dict[str, Any]]:
                 pass 
                 
         if filters.sectors and filters.sectors[0]:
-            query = query.filter(ScreenerStock.sector == filters.sectors[0])
+            # Use LIKE for partial matching (e.g., "Technology" matches "Information Technology")
+            query = query.filter(ScreenerStock.sector.ilike(f"%{filters.sectors[0]}%"))
 
         candidates = query.all()
         

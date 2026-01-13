@@ -11,7 +11,13 @@ type SortDirection = 'asc' | 'desc';
 export default function ScreenerPage() {
     const router = useRouter();
     const [stocks, setStocks] = useState<Stock[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+
+    // Start with isLoading false because we are waiting for user input
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Track if a search has been performed at least once
+    const [hasSearched, setHasSearched] = useState(false);
+
     const [error, setError] = useState<string | null>(null);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [autoRefresh, setAutoRefresh] = useState(true);
@@ -33,6 +39,7 @@ export default function ScreenerPage() {
         try {
             setIsLoading(true);
             setError(null);
+            setHasSearched(true); // Mark that we have attempted a search
 
             const response = await screenerApi.getResults({
                 search: searchTerm || undefined,
@@ -51,13 +58,7 @@ export default function ScreenerPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [filters]); // Removed searchTerm from dependencies to avoid auto-triggering on typing
-
-    // Fetch when filters change or when manually triggered
-    useEffect(() => {
-        // Debounce fetch if needed, but for now we rely on Apply button or blur
-        fetchStocks();
-    }, [fetchStocks]);
+    }, [filters, searchTerm]); // Added searchTerm to be explicit, but we invoke manually mostly
 
     // Handle Search Submit
     const handleSearchSubmit = (e: React.FormEvent) => {
@@ -65,12 +66,12 @@ export default function ScreenerPage() {
         fetchStocks();
     };
 
-    // Auto-refresh
+    // Auto-refresh ONLY works if we have searched already
     useEffect(() => {
-        if (!autoRefresh) return;
+        if (!autoRefresh || !hasSearched) return;
         const interval = setInterval(fetchStocks, 60000);
         return () => clearInterval(interval);
-    }, [autoRefresh, fetchStocks]);
+    }, [autoRefresh, fetchStocks, hasSearched]);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -126,8 +127,9 @@ export default function ScreenerPage() {
                             checked={autoRefresh}
                             onChange={(e) => setAutoRefresh(e.target.checked)}
                             className="accent-indigo-500 w-4 h-4"
+                            disabled={!hasSearched} // Disable auto-refresh until searched
                         />
-                        <span className="text-gray-300">Live Updates</span>
+                        <span className={`text-gray-300 ${!hasSearched ? 'opacity-50' : ''}`}>Live Updates</span>
                     </label>
                     <div className="h-6 w-px bg-white/10"></div>
                     <button
@@ -229,11 +231,6 @@ export default function ScreenerPage() {
                                 onChange={(e) => setFilters({ ...filters, maxPE: Number(e.target.value) })}
                                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                             />
-                            <div className="flex justify-between text-xs text-gray-500 mt-2">
-                                <span>0</span>
-                                <span>100</span>
-                                <span>200+</span>
-                            </div>
                         </div>
                         <div className="bg-white/5 p-4 rounded-lg border border-white/5">
                             <div className="flex justify-between mb-2">
@@ -271,11 +268,12 @@ export default function ScreenerPage() {
                                 onClick={() => {
                                     setFilters({ maxPE: 0, maxPEG: 0, minScore: 0, minUpside: 0, sector: '' });
                                     setSearchTerm('');
-                                    fetchStocks();
+                                    setStocks([]); // Clear results on reset
+                                    setHasSearched(false);
                                 }}
                                 className="flex-1 py-3 rounded-lg border border-white/10 hover:bg-white/5 text-gray-400 hover:text-white transition-colors text-sm font-medium"
                             >
-                                Reset All
+                                Reset & Clear
                             </button>
                             <button
                                 onClick={fetchStocks}
@@ -294,70 +292,105 @@ export default function ScreenerPage() {
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                         <span className="text-indigo-400">●</span> Results ({stocks.length})
                     </h3>
-                    <div className="flex gap-2">
-                        <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => copyToClipboard(stocks as any, [])}>Copy</button>
-                        <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => exportToCSV(stocks as any, [], 'screener')}>CSV</button>
-                    </div>
+                    {stocks.length > 0 && (
+                        <div className="flex gap-2">
+                            <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => copyToClipboard(stocks as any, [])}>Copy</button>
+                            <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => exportToCSV(stocks as any, [], 'screener')}>CSV</button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-white/5 text-gray-400 text-sm uppercase tracking-wider">
-                                <th onClick={() => handleSort('symbol')} className="p-4 cursor-pointer hover:text-white transition-colors">Symbol {getSortIcon('symbol')}</th>
-                                <th className="p-4">Name</th>
-                                <th className="p-4">Sector</th>
-                                <th onClick={() => handleSort('current_price')} className="p-4 text-right cursor-pointer hover:text-white">Price {getSortIcon('current_price')}</th>
-                                <th onClick={() => handleSort('pe_ratio')} className="p-4 text-right cursor-pointer hover:text-white">P/E {getSortIcon('pe_ratio')}</th>
-                                <th onClick={() => handleSort('score')} className="p-4 text-right cursor-pointer hover:text-white">Score {getSortIcon('score')}</th>
-                                <th onClick={() => handleSort('upside_potential')} className="p-4 text-right cursor-pointer hover:text-white">Upside {getSortIcon('upside_potential')}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredAndSortedStocks.map((stock) => (
-                                <tr
-                                    key={stock.symbol}
-                                    onClick={() => handleStockClick(stock.symbol)}
-                                    className="hover:bg-white/5 transition-colors cursor-pointer group"
-                                >
-                                    <td className="p-4 font-bold text-indigo-400 group-hover:text-indigo-300">{stock.symbol}</td>
-                                    <td className="p-4 text-gray-300 truncate max-w-[200px]">{stock.name}</td>
-                                    <td className="p-4">
-                                        <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-400 border border-white/5">
-                                            {stock.sector}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-right font-mono text-gray-300">${stock.current_price?.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-gray-300">{stock.pe_ratio?.toFixed(1) || '-'}</td>
-                                    <td className="p-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <span className="font-bold text-sm">{stock.score}</span>
-                                            <div className="w-16 h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${(stock.score || 0) >= 70 ? 'bg-emerald-500' : (stock.score || 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                                    style={{ width: `${stock.score || 0}%` }}
-                                                />
+                {/* Initial Empty State */}
+                {!hasSearched && !isLoading && (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-center p-8">
+                        <div className="bg-indigo-500/10 p-4 rounded-full mb-4">
+                            <svg className="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Ready to Screen</h3>
+                        <p className="text-gray-400 max-w-md mx-auto">
+                            Enter a stock symbol to search instantly, or adjust the filters above and click "Apply Filters" to scan the market.
+                        </p>
+                    </div>
+                )}
+
+                {/* Loading State */}
+                {isLoading && (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-gray-400">Scanning market data...</p>
+                    </div>
+                )}
+
+                {/* No Results State */}
+                {hasSearched && !isLoading && stocks.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-center p-8">
+                        <div className="bg-red-500/10 p-4 rounded-full mb-4">
+                            <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">No Matches Found</h3>
+                        <p className="text-gray-400 max-w-md mx-auto">
+                            No stocks matched your criteria. Try loosening your filters or searching for a specific symbol directly.
+                        </p>
+                    </div>
+                )}
+
+                {/* Table Content */}
+                {hasSearched && stocks.length > 0 && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-white/5 text-gray-400 text-sm uppercase tracking-wider">
+                                    <th onClick={() => handleSort('symbol')} className="p-4 cursor-pointer hover:text-white transition-colors">Symbol {getSortIcon('symbol')}</th>
+                                    <th className="p-4">Name</th>
+                                    <th className="p-4">Sector</th>
+                                    <th onClick={() => handleSort('current_price')} className="p-4 text-right cursor-pointer hover:text-white">Price {getSortIcon('current_price')}</th>
+                                    <th onClick={() => handleSort('pe_ratio')} className="p-4 text-right cursor-pointer hover:text-white">P/E {getSortIcon('pe_ratio')}</th>
+                                    <th onClick={() => handleSort('score')} className="p-4 text-right cursor-pointer hover:text-white">Score {getSortIcon('score')}</th>
+                                    <th onClick={() => handleSort('upside_potential')} className="p-4 text-right cursor-pointer hover:text-white">Upside {getSortIcon('upside_potential')}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {filteredAndSortedStocks.map((stock) => (
+                                    <tr
+                                        key={stock.symbol}
+                                        onClick={() => handleStockClick(stock.symbol)}
+                                        className="hover:bg-white/5 transition-colors cursor-pointer group"
+                                    >
+                                        <td className="p-4 font-bold text-indigo-400 group-hover:text-indigo-300">{stock.symbol}</td>
+                                        <td className="p-4 text-gray-300 truncate max-w-[200px]">{stock.name}</td>
+                                        <td className="p-4">
+                                            <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-400 border border-white/5">
+                                                {stock.sector}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-right font-mono text-gray-300">${stock.current_price?.toFixed(2)}</td>
+                                        <td className="p-4 text-right font-mono text-gray-300">{stock.pe_ratio?.toFixed(1) || '-'}</td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <span className="font-bold text-sm">{stock.score}</span>
+                                                <div className="w-16 h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full ${(stock.score || 0) >= 70 ? 'bg-emerald-500' : (stock.score || 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                        style={{ width: `${stock.score || 0}%` }}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-right font-mono">
-                                        <span className={`${(stock.upside_potential || 0) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {(stock.upside_potential || 0) > 0 ? '+' : ''}{stock.upside_potential?.toFixed(1)}%
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filteredAndSortedStocks.length === 0 && !isLoading && (
-                                <tr>
-                                    <td colSpan={7} className="p-12 text-center text-gray-500">
-                                        No stocks found matching your criteria. Try adjusting filters or searching for a specific symbol.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                        </td>
+                                        <td className="p-4 text-right font-mono">
+                                            <span className={`${(stock.upside_potential || 0) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {(stock.upside_potential || 0) > 0 ? '+' : ''}{stock.upside_potential?.toFixed(1)}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

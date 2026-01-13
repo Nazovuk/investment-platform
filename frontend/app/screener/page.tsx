@@ -212,7 +212,11 @@ export default function ScreenerPage() {
                             </thead>
                             <tbody>
                                 {sorted.slice(0, 100).map((s: any, i) => (
-                                    <tr key={s.symbol} onClick={() => window.open(`/stock/${s.symbol}`, '_blank')} style={{ borderBottom: '1px solid #1e1e2e', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = '#1e1e2e')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                    <tr key={s.symbol} onClick={() => {
+                                        const w = 1200, h = 800;
+                                        const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
+                                        window.open(`/stock/${s.symbol}`, `stock_${s.symbol}`, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+                                    }} style={{ borderBottom: '1px solid #1e1e2e', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = '#1e1e2e')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                         <td style={{ padding: '12px', fontFamily: 'monospace', fontWeight: 700, color: '#a78bfa' }}>{s.symbol}</td>
                                         <td style={{ padding: '12px', color: 'white' }}>{s.name || s.symbol}</td>
                                         <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'monospace', color: 'white' }}>${(s.current_price || s.price)?.toFixed(2) || '-'}</td>

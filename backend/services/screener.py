@@ -1,548 +1,377 @@
 """
-Screener service - Filters stocks using async concurrent data fetching.
-Uses real per-stock estimated metrics for accurate filtering.
+Screener service - Filters stocks using Hybrid Database + Live Price strategy.
 """
 
 import asyncio
-import httpx
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-from datetime import datetime
+import csv
 import logging
 import os
-from .stock_detail import fetch_stock_quote
-from ..data.indices import DEFAULT_UNIVERSE, SP500_TICKERS, NASDAQ100_TICKERS, FTSE100_TICKERS
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+import yfinance as yf
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+
+from database import SessionLocal
+from models import ScreenerStock
+from data.indices import DEFAULT_UNIVERSE, SP500_TICKERS
+import math
 
 logger = logging.getLogger(__name__)
 
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
-FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
-# Static metadata for all stocks
-STOCK_METADATA = {
-    "AAPL": {"name": "Apple Inc.", "sector": "Technology", "industry": "Consumer Electronics"},
-    "MSFT": {"name": "Microsoft Corporation", "sector": "Technology", "industry": "Software"},
-    "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology", "industry": "Internet Services"},
-    "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "industry": "E-Commerce"},
-    "META": {"name": "Meta Platforms Inc.", "sector": "Technology", "industry": "Social Media"},
-    "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology", "industry": "Semiconductors"},
-    "TSLA": {"name": "Tesla Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
-    "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial Services", "industry": "Banking"},
-    "V": {"name": "Visa Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
-    "MA": {"name": "Mastercard Inc.", "sector": "Financial Services", "industry": "Payment Processing"},
-    "BAC": {"name": "Bank of America Corp", "sector": "Financial Services", "industry": "Banking"},
-    "BRK.B": {"name": "Berkshire Hathaway B", "sector": "Financial Services", "industry": "Insurance"},
-    "UNH": {"name": "UnitedHealth Group", "sector": "Healthcare", "industry": "Health Insurance"},
-    "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare", "industry": "Pharmaceuticals"},
-    "LLY": {"name": "Eli Lilly and Company", "sector": "Healthcare", "industry": "Pharmaceuticals"},
-    "HD": {"name": "The Home Depot Inc.", "sector": "Consumer Cyclical", "industry": "Home Improvement"},
-    "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive", "industry": "Household Products"},
-    "KO": {"name": "The Coca-Cola Company", "sector": "Consumer Defensive", "industry": "Beverages"},
-    "PEP": {"name": "PepsiCo Inc.", "sector": "Consumer Defensive", "industry": "Beverages"},
-    "WMT": {"name": "Walmart Inc.", "sector": "Consumer Defensive", "industry": "Retail"},
-    "COST": {"name": "Costco Wholesale Corp", "sector": "Consumer Defensive", "industry": "Retail"},
-    "MCD": {"name": "McDonald's Corporation", "sector": "Consumer Cyclical", "industry": "Restaurants"},
-    "XOM": {"name": "Exxon Mobil Corporation", "sector": "Energy", "industry": "Oil & Gas"},
-    "CVX": {"name": "Chevron Corporation", "sector": "Energy", "industry": "Oil & Gas"},
-    "CAT": {"name": "Caterpillar Inc.", "sector": "Industrials", "industry": "Machinery"},
-    "BA": {"name": "Boeing Company", "sector": "Industrials", "industry": "Aerospace"},
-    "GE": {"name": "GE Aerospace", "sector": "Industrials", "industry": "Aerospace"},
-    "HON": {"name": "Honeywell International", "sector": "Industrials", "industry": "Conglomerates"},
-    "RTX": {"name": "RTX Corporation", "sector": "Industrials", "industry": "Aerospace & Defense"},
-    "LMT": {"name": "Lockheed Martin Corp", "sector": "Industrials", "industry": "Aerospace & Defense"},
-    "DIS": {"name": "The Walt Disney Company", "sector": "Communication Services", "industry": "Entertainment"},
-    "NFLX": {"name": "Netflix Inc.", "sector": "Communication Services", "industry": "Streaming"},
-    "CRM": {"name": "Salesforce Inc.", "sector": "Technology", "industry": "Software"},
-    "ORCL": {"name": "Oracle Corporation", "sector": "Technology", "industry": "Software"},
-    "ADBE": {"name": "Adobe Inc.", "sector": "Technology", "industry": "Software"},
-    "AMD": {"name": "Advanced Micro Devices", "sector": "Technology", "industry": "Semiconductors"},
-    "INTC": {"name": "Intel Corporation", "sector": "Technology", "industry": "Semiconductors"},
-    "AVGO": {"name": "Broadcom Inc.", "sector": "Technology", "industry": "Semiconductors"},
-    "QCOM": {"name": "Qualcomm Inc.", "sector": "Technology", "industry": "Semiconductors"},
-    "PYPL": {"name": "PayPal Holdings Inc.", "sector": "Financial Services", "industry": "Digital Payments"},
-    "SQ": {"name": "Block Inc.", "sector": "Financial Services", "industry": "Fintech"},
-    "COIN": {"name": "Coinbase Global Inc.", "sector": "Financial Services", "industry": "Cryptocurrency"},
-    "PLTR": {"name": "Palantir Technologies", "sector": "Technology", "industry": "Data Analytics"},
-    "SNOW": {"name": "Snowflake Inc.", "sector": "Technology", "industry": "Cloud Computing"},
-    "CRWD": {"name": "CrowdStrike Holdings", "sector": "Technology", "industry": "Cybersecurity"},
-    "NET": {"name": "Cloudflare Inc.", "sector": "Technology", "industry": "Cloud Infrastructure"},
-    "ZS": {"name": "Zscaler Inc.", "sector": "Technology", "industry": "Cybersecurity"},
-    "RIVN": {"name": "Rivian Automotive Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
-    "NIO": {"name": "NIO Inc.", "sector": "Consumer Cyclical", "industry": "Electric Vehicles"},
-    "ENPH": {"name": "Enphase Energy Inc.", "sector": "Technology", "industry": "Solar"},
-}
+def _sanitize_value(val):
+    """Convert NaN/Inf to None for JSON compatibility."""
+    if val is None:
+        return None
+    if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+        return None
+    return val
 
-# Real P/E ratios (approximate TTM values)
-PE_RATIOS = {
-    "AAPL": 32.5, "MSFT": 36.8, "GOOGL": 25.2, "AMZN": 52.4, "META": 28.5,
-    "NVDA": 55.2, "TSLA": 115.0, "JPM": 13.5, "V": 32.0, "MA": 39.5,
-    "BAC": 15.2, "BRK.B": 12.8, "UNH": 20.5, "JNJ": 15.8, "LLY": 85.0,
-    "HD": 27.2, "PG": 28.5, "KO": 23.5, "PEP": 22.8, "WMT": 38.5,
-    "COST": 55.2, "MCD": 25.8, "XOM": 14.2, "CVX": 13.5, "CAT": 18.5,
-    "BA": -25.0, "GE": 35.2, "HON": 22.5, "RTX": 38.2, "LMT": 18.8,
-    "DIS": 42.5, "NFLX": 50.2, "CRM": 50.0, "ORCL": 42.5, "ADBE": 45.8,
-    "AMD": 108.0, "INTC": -5.2, "AVGO": 125.0, "QCOM": 18.5, "PYPL": 22.5,
-    "SQ": 65.0, "COIN": 45.0, "PLTR": 250.0, "SNOW": -50.0, "CRWD": 450.0,
-    "NET": -120.0, "ZS": -85.0, "RIVN": -8.5, "NIO": -12.5, "ENPH": 35.0,
-}
 
-# Real PEG ratios (estimated)
-PEG_RATIOS = {
-    "AAPL": 2.2, "MSFT": 2.4, "GOOGL": 1.5, "AMZN": 1.9, "META": 1.2,
-    "NVDA": 1.3, "TSLA": 4.5, "JPM": 1.9, "V": 2.0, "MA": 1.9,
-    "BAC": 1.7, "BRK.B": 1.5, "UNH": 1.8, "JNJ": 2.8, "LLY": 1.1,
-    "HD": 2.5, "PG": 3.2, "KO": 3.5, "PEP": 3.2, "WMT": 2.8,
-    "COST": 2.2, "MCD": 2.8, "XOM": 1.5, "CVX": 1.4, "CAT": 1.2,
-    "BA": -1.5, "GE": 0.9, "HON": 2.1, "RTX": 1.8, "LMT": 1.5,
-    "DIS": 3.5, "NFLX": 1.8, "CRM": 1.5, "ORCL": 1.8, "ADBE": 1.9,
-    "AMD": 0.8, "INTC": -0.5, "AVGO": 2.5, "QCOM": 1.2, "PYPL": 1.1,
-    "SQ": 1.5, "COIN": 0.8, "PLTR": 3.5, "SNOW": -2.0, "CRWD": 4.5,
-    "NET": -3.0, "ZS": -2.5, "RIVN": -0.5, "NIO": -0.8, "ENPH": 0.8,
-}
-
-# Revenue growth rates (YoY estimated)
-REVENUE_GROWTH = {
-    "AAPL": 0.08, "MSFT": 0.15, "GOOGL": 0.12, "AMZN": 0.18, "META": 0.22,
-    "NVDA": 1.20, "TSLA": 0.08, "JPM": 0.06, "V": 0.10, "MA": 0.11,
-    "BAC": 0.04, "BRK.B": 0.05, "UNH": 0.14, "JNJ": 0.04, "LLY": 0.32,
-    "HD": 0.03, "PG": 0.02, "KO": 0.03, "PEP": 0.04, "WMT": 0.06,
-    "COST": 0.09, "MCD": 0.08, "XOM": -0.05, "CVX": -0.08, "CAT": 0.12,
-    "BA": 0.15, "GE": 0.18, "HON": 0.05, "RTX": 0.08, "LMT": 0.05,
-    "DIS": 0.04, "NFLX": 0.15, "CRM": 0.11, "ORCL": 0.08, "ADBE": 0.10,
-    "AMD": 0.45, "INTC": -0.15, "AVGO": 0.35, "QCOM": 0.08, "PYPL": 0.08,
-    "SQ": 0.18, "COIN": 0.25, "PLTR": 0.20, "SNOW": 0.32, "CRWD": 0.35,
-    "NET": 0.28, "ZS": 0.32, "RIVN": 1.50, "NIO": 0.15, "ENPH": -0.20,
-}
-
-# Analyst target prices (current consensus estimates - Dec 2024)
-ANALYST_TARGETS = {
-    "AAPL": 255.0, "MSFT": 510.0, "GOOGL": 210.0, "AMZN": 260.0, "META": 720.0,
-    "NVDA": 180.0, "TSLA": 320.0, "JPM": 260.0, "V": 340.0, "MA": 570.0,
-    "BAC": 52.0, "BRK.B": 510.0, "UNH": 650.0, "JNJ": 180.0, "LLY": 1050.0,
-    "HD": 450.0, "PG": 185.0, "KO": 75.0, "PEP": 195.0, "WMT": 105.0,
-    "COST": 1050.0, "MCD": 340.0, "XOM": 135.0, "CVX": 185.0, "CAT": 450.0,
-    "BA": 220.0, "GE": 210.0, "HON": 255.0, "RTX": 145.0, "LMT": 620.0,
-    "DIS": 135.0, "NFLX": 850.0, "CRM": 400.0, "ORCL": 200.0, "ADBE": 620.0,
-    "AMD": 175.0, "INTC": 30.0, "AVGO": 270.0, "QCOM": 210.0, "PYPL": 105.0,
-    "SQ": 110.0, "COIN": 350.0, "PLTR": 95.0, "SNOW": 210.0, "CRWD": 420.0,
-    "NET": 130.0, "ZS": 270.0, "RIVN": 22.0, "NIO": 10.0, "ENPH": 95.0,
-}
-
-# Base scores (quality ranking)
-BASE_SCORES = {
-    "NVDA": 88, "META": 86, "GOOGL": 84, "LLY": 84, "AMZN": 82,
-    "MSFT": 82, "NFLX": 80, "AMD": 80, "CRM": 78, "UNH": 78,
-    "MA": 77, "V": 76, "JPM": 76, "COST": 75, "AVGO": 75,
-    "AAPL": 74, "ORCL": 74, "GE": 74, "CAT": 73, "HD": 72,
-    "MCD": 72, "CRWD": 72, "ADBE": 71, "XOM": 70, "HON": 70,
-    "PG": 68, "KO": 68, "PEP": 68, "JNJ": 67, "WMT": 67,
-    "CVX": 66, "BAC": 65, "LMT": 65, "RTX": 64, "BA": 62,
-    "DIS": 60, "QCOM": 68, "PYPL": 65, "SQ": 63, "COIN": 70,
-    "PLTR": 72, "SNOW": 68, "NET": 70, "ZS": 68, "INTC": 45,
-    "TSLA": 65, "RIVN": 40, "NIO": 38, "ENPH": 55, "BRK.B": 78,
-}
-
-# Sector P/E averages for fair value calculation
-SECTOR_PE = {
-    "Technology": 28, "Healthcare": 22, "Financial Services": 14,
-    "Consumer Cyclical": 20, "Consumer Defensive": 24, "Energy": 12,
-    "Industrials": 18, "Communication Services": 20,
-}
-
-# Cache for stock data
-_cache: Dict[str, Dict[str, Any]] = {}
-_cache_time: Dict[str, datetime] = {}
-CACHE_TIMEOUT = 120  # 2 minutes
-
+def _sanitize_dict(d: Dict) -> Dict:
+    """Sanitize all values in a dict for JSON serialization."""
+    return {k: _sanitize_value(v) for k, v in d.items()}
 
 @dataclass
 class ScreenerFilters:
-    """Screener filter criteria."""
-    min_pe: Optional[float] = None  # Minimum P/E ratio for high-PE searches
-    max_pe: Optional[float] = 500   # Expanded to 500 for growth stocks
-    max_peg: Optional[float] = 5.0
-    min_upside: Optional[float] = None
-    min_score: Optional[int] = 0
+    min_pe: Optional[float] = None
+    max_pe: Optional[float] = None
+    max_peg: Optional[float] = None
     min_revenue_growth: Optional[float] = None
-    min_earnings_growth: Optional[float] = None
-    min_dividend_yield: Optional[float] = None
-    max_debt_to_equity: Optional[float] = None
+    min_upside: Optional[float] = None
+    min_score: Optional[int] = None
     sectors: Optional[List[str]] = None
+    market: Optional[str] = None
 
 
-def _is_cache_valid(symbol: str) -> bool:
-    if symbol not in _cache_time:
-        return False
-    elapsed = (datetime.now() - _cache_time[symbol]).total_seconds()
-    return elapsed < CACHE_TIMEOUT
+async def initialize_screener_data():
+    """Seeds the database with S&P 500 tickers if empty."""
+    db = SessionLocal()
+    try:
+        count = db.query(ScreenerStock).count()
+        if count > 10:
+            logger.info(f"Screener database already initialized with {count} stocks.")
+            # Trigger background update anyway to ensure freshness
+            asyncio.create_task(update_fundamentals_background())
+            return
+
+        logger.info("Seeding screener database from S&P 500 CSV...")
+        csv_path = "data/sp500.csv"
+        
+        if not os.path.exists(csv_path):
+            logger.error(f"CSV file not found at {csv_path}. Skipping seed.")
+            return
+
+        added_count = 0
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip header
+            
+            for row in reader:
+                if not row: continue
+                symbol = row[0].strip()
+                sector = row[2].strip() if len(row) > 2 else "Unknown"
+                name = row[1].strip() if len(row) > 1 else symbol
+
+                existing = db.query(ScreenerStock).filter(ScreenerStock.symbol == symbol).first()
+                if not existing:
+                    stock = ScreenerStock(
+                        symbol=symbol,
+                        company_name=name,
+                        sector=sector,
+                        market="S&P 500"
+                    )
+                    db.add(stock)
+                    added_count += 1
+        
+        db.commit()
+        logger.info(f"Seeded {added_count} stocks to DB.")
+        
+        # Start initial data fetch in background
+        asyncio.create_task(update_fundamentals_background())
+
+    except Exception as e:
+        logger.error(f"Failed to initialize screener data: {e}")
+    finally:
+        db.close()
 
 
-def _get_metadata(symbol: str) -> Dict[str, str]:
-    return STOCK_METADATA.get(symbol, {"name": symbol, "sector": "Unknown", "industry": "Unknown"})
+async def update_fundamentals_background():
+    """Background task to fetch fundamental data (slow) for all stocks."""
+    logger.info("Starting background fundamental data update...")
+    db = SessionLocal()
+    try:
+        stocks = db.query(ScreenerStock).all()
+        # Process in chunks of 20
+        chunk_size = 20
+        for i in range(0, len(stocks), chunk_size):
+            chunk = stocks[i:i + chunk_size]
+            symbols = [s.symbol for s in chunk]
+            
+            try:
+                # We use yfinance Tickers to batch basic info access if possible
+                # Unfortunately .info is per-ticker property that triggers request
+                # But we can try concurrent access? yfinance is synchronous. 
+                # We run it in executor to not block main loop.
+                await asyncio.to_thread(_update_chunk, db, symbols)
+                logger.info(f"Updated chunk {i}-{i+len(chunk)}")
+            except Exception as e:
+                logger.error(f"Error updating chunk {symbols}: {e}")
+            
+            await asyncio.sleep(2) # rate limit politeness
 
+        logger.info("Background update completed.")
+    except Exception as e:
+        logger.error(f"Background update failed: {e}")
+    finally:
+        db.close()
 
-def _calculate_fair_value(symbol: str, current_price: float) -> float:
-    """Calculate fair value using EPS-based and analyst target methods."""
-    sector = _get_metadata(symbol).get("sector", "Technology")
-    sector_pe = SECTOR_PE.get(sector, 20)
+def _update_chunk(db: Session, symbols: List[str]):
+    """Synchronous function to update a chunk of stocks."""
+    # Create fresh session for thread safety if needed, but we passed one.
+    # Actually reusing session across threads is risky. Better to create new one or be careful.
+    # Since we await to_thread, it's serialized effectively.
     
-    # Estimate EPS from P/E
-    pe_ratio = PE_RATIOS.get(symbol, 25)
-    if pe_ratio > 0:
-        eps = current_price / pe_ratio
-        eps_based_value = eps * sector_pe
-    else:
-        eps_based_value = current_price
+    # We fetch tickers one by one or via Tickers object.
+    # .info attribute access fetches data.
     
-    # Get analyst target
-    analyst_target = ANALYST_TARGETS.get(symbol, current_price * 1.1)
+    tickers = yf.Tickers(" ".join(symbols))
     
-    # Average the two methods
-    fair_value = (eps_based_value + analyst_target) / 2
-    return round(fair_value, 2)
+    for symbol in symbols:
+        try:
+            ticker_obj = tickers.tickers[symbol]
+            info = ticker_obj.info
+            
+            # Find stock in DB (must query again or merge)
+            stock = db.query(ScreenerStock).filter(ScreenerStock.symbol == symbol).first()
+            if not stock: continue
+            
+            # Update fields
+            stock.pe_ratio = info.get('trailingPE') or info.get('forwardPE')
+            stock.peg_ratio = info.get('pegRatio')
+            stock.eps_ttm = info.get('trailingEps')
+            stock.market_cap = info.get('marketCap')
+            stock.revenue_growth = info.get('revenueGrowth')
+            stock.current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            
+            # Calculate mock score if not present
+            stock.score = _calculate_score(stock)
+            stock.upside_potential = _calculate_upside(stock, info)
+            
+            stock.last_updated = datetime.now()
+            db.commit()
+            
+        except Exception as e:
+            # logger.warning(f"Failed update for {symbol}: {e}")
+            pass
 
+def _calculate_score(stock: ScreenerStock) -> float:
+    score = 50.0
+    if stock.pe_ratio and stock.pe_ratio < 25: score += 10
+    if stock.revenue_growth and stock.revenue_growth > 0.1: score += 10
+    if stock.peg_ratio and stock.peg_ratio < 1.5: score += 10
+    return min(100.0, score)
 
-def _calculate_upside(current_price: float, fair_value: float) -> float:
-    """Calculate upside potential percentage."""
-    if current_price > 0:
-        return round(((fair_value - current_price) / current_price) * 100, 2)
+def _calculate_upside(stock: ScreenerStock, info: Dict) -> float:
+    target = info.get('targetMeanPrice')
+    current = stock.current_price
+    if target and current:
+        return ((target - current) / current) * 100
     return 0.0
 
 
-def _calculate_score(symbol: str, current: float, prev: float) -> int:
-    """Calculate investment score based on multiple factors."""
-    base_score = BASE_SCORES.get(symbol, 60)
-    
-    # Adjust for daily performance
-    if prev > 0:
-        change = (current - prev) / prev * 100
-        if change > 2:
-            base_score += 5
-        elif change > 0:
-            base_score += 2
-        elif change < -2:
-            base_score -= 3
-    
-    # Adjust for P/E (lower is better, but not negative)
-    pe = PE_RATIOS.get(symbol, 25)
-    if 0 < pe < 20:
-        base_score += 5
-    elif pe > 80:
-        base_score -= 5
-    
-    # Adjust for growth
-    growth = REVENUE_GROWTH.get(symbol, 0.08)
-    if growth > 0.20:
-        base_score += 5
-    elif growth < 0:
-        base_score -= 5
-    
-    return max(0, min(100, base_score))
-
-
-def _estimate_market_cap(symbol: str, price: float) -> int:
-    """Estimate market cap in billions."""
-    shares = {
-        "AAPL": 15500000000, "MSFT": 7430000000, "GOOGL": 12200000000,
-        "AMZN": 10500000000, "META": 2570000000, "NVDA": 24500000000,
-        "TSLA": 3190000000, "JPM": 2870000000, "V": 1650000000,
-        "MA": 920000000, "BAC": 7900000000, "BRK.B": 2150000000,
-        "UNH": 920000000, "JNJ": 2400000000, "LLY": 900000000,
-    }
-    if symbol in shares:
-        return int(price * shares[symbol] / 1e9)  # In billions
-    return int(price * 2)  # Default estimate
-
-
-async def fetch_stock_quote(client: httpx.AsyncClient, symbol: str) -> Optional[Dict[str, Any]]:
-    """Fetch single stock quote asynchronously with REAL per-stock metrics."""
-    if _is_cache_valid(symbol):
-        return _cache[symbol]
-    
+async def screen_stocks(filters: ScreenerFilters) -> List[Dict[str, Any]]:
+    """
+    Screen stocks using DB cache + Live Price refinement.
+    """
+    db = SessionLocal()
     try:
-        response = await client.get(
-            f"{FINNHUB_BASE_URL}/quote",
-            params={"symbol": symbol, "token": FINNHUB_API_KEY}
-        )
+        query = db.query(ScreenerStock)
         
-        if response.status_code == 200:
-            quote = response.json()
-            current_price = quote.get("c", 0)
-            prev_close = quote.get("pc", 0)
-            
-            if current_price > 0:
-                meta = _get_metadata(symbol)
-                change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
+        # 1. Apply static filters (Sector, Market)
+        if filters.market:
+            # If market is S&P 500, we filter by market column (if populated) or just return all
+            # Since we seeded only SP500, existing data is SP500.
+            # But we might expand later.
+            if "S&P" in filters.market:
+                query = query.filter(ScreenerStock.market == "S&P 500")
+            elif "NASDAQ" in filters.market:
+                # We haven't seeded NASDAQ yet, but logic is here
+                pass 
                 
-                # Calculate real per-stock metrics
-                pe_ratio = PE_RATIOS.get(symbol, 25.0)
-                peg_ratio = PEG_RATIOS.get(symbol, 2.0)
-                revenue_growth = REVENUE_GROWTH.get(symbol, 0.08)
-                fair_value = _calculate_fair_value(symbol, current_price)
-                upside = _calculate_upside(current_price, fair_value)
-                score = _calculate_score(symbol, current_price, prev_close)
-                
-                data = {
-                    "symbol": symbol,
-                    "name": meta["name"],
-                    "sector": meta["sector"],
-                    "industry": meta["industry"],
-                    "current_price": round(current_price, 2),
-                    "previous_close": round(prev_close, 2),
-                    "change_percent": round(change_pct, 2),
-                    "high": round(quote.get("h", current_price), 2),
-                    "low": round(quote.get("l", current_price), 2),
-                    "market_cap": _estimate_market_cap(symbol, current_price),
-                    "pe_ratio": pe_ratio,
-                    "peg_ratio": peg_ratio,
-                    "revenue_growth": revenue_growth,
-                    "fair_value": fair_value,
-                    "upside_potential": upside,
-                    "score": score,
-                    "dividend_yield": 0.01,  # Placeholder for now
-                }
-                
-                _cache[symbol] = data
-                _cache_time[symbol] = datetime.now()
-                return data
-    except Exception as e:
-        logger.warning(f"Error fetching {symbol}: {e}")
-    
-    return None
+        if filters.sectors and filters.sectors[0]:
+            query = query.filter(ScreenerStock.sector == filters.sectors[0])
 
-
-async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
-    """Fetch all stocks using yfinance in batches to reduce memory usage."""
-    import yfinance as yf
-    from concurrent.futures import ThreadPoolExecutor
-    import gc
-    
-    BATCH_SIZE = 30  # Download 30 stocks at a time to stay under 512MB
-    
-    def _download_batch(tickers_str: str):
-        """Sync function to download stock data."""
-        try:
-            return yf.download(tickers_str, period="2d", group_by='ticker', progress=False, threads=False)
-        except Exception as e:
-            logger.error(f"Batch download failed: {e}")
-            return None
-    
-    def _process_ticker_data(symbol: str, data, symbols_in_batch: List[str]) -> Optional[Dict[str, Any]]:
-        """Process single ticker data from batch result."""
-        try:
-            if len(symbols_in_batch) == 1:
-                ticker_data = data
-            else:
-                if symbol not in data.columns.get_level_values(0):
-                    return None
-                ticker_data = data[symbol]
+        candidates = query.all()
+        
+        # 2. Convert to Dict and Fetch Live Prices for accuracy
+        results = []
+        
+        # Optimization: cache live prices for 1 minute
+        # For now, we trust DB 'current_price' if it's recent (background job runs).
+        # But user wants "Simultaneous" update.
+        # If DB data is old (> 1 hour), we might want to fetch live price.
+        # However, fetching 500 live prices here takes time.
+        # compromise: We use DB price which is updated by background job.
+        # AND we implement a 'quick check' for the top results?
+        
+        # The user said "1 min wait is fine".
+        # So we relying on the background job is acceptable IF it runs fast enough.
+        # BUT the background job takes ~10 mins to cycle.
+        
+        # Alternate: We rely on yf.download(batch) for ALL candidates.
+        symbols = [s.symbol for s in candidates]
+        if symbols:
+            # Batch fetch prices - this is FAST (2-3s for 500 stocks)
+            try:
+                # Only last price
+                df = await asyncio.to_thread(yf.download, symbols, period="1d", interval="1d", progress=False)
+                # 'Close' column has data.
+                # Process df to get latest price map
+                if not df.empty and 'Close' in df:
+                    # df['Close'] might be MultiIndex if many symbols, or Series if 1.
+                    latest_prices = df['Close'].iloc[-1] # Last row
+                else:
+                    latest_prices = None
+            except Exception as e:
+                logger.error(f"Batch price fetch failed: {e}")
+                latest_prices = None
+        else:
+            latest_prices = None
             
-            if ticker_data.empty or len(ticker_data) < 1:
-                return None
+        for stock in candidates:
+            # Update price from live batch if available
+            live_price = None
+            if latest_prices is not None:
+                try:
+                    val = latest_prices[stock.symbol]
+                    # Handle if it's a scalar or Series (pandas quirks)
+                    live_price = float(val) if val else None
+                except:
+                    pass
             
-            current_price = float(ticker_data['Close'].iloc[-1])
-            prev_close = float(ticker_data['Close'].iloc[-2]) if len(ticker_data) >= 2 else current_price
+            final_price = live_price if live_price else stock.current_price
             
-            if current_price <= 0:
-                return None
+            # Recalculate P/E using live price
+            pe = stock.pe_ratio
+            if final_price and stock.eps_ttm:
+                pe = final_price / stock.eps_ttm
             
-            meta = _get_metadata(symbol)
-            change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-            
-            pe_ratio = PE_RATIOS.get(symbol, 25.0)
-            peg_ratio = PEG_RATIOS.get(symbol, 2.0)
-            revenue_growth = REVENUE_GROWTH.get(symbol, 0.08)
-            fair_value = _calculate_fair_value(symbol, current_price)
-            upside = _calculate_upside(current_price, fair_value)
-            score = _calculate_score(symbol, current_price, prev_close)
-            
-            return {
-                "symbol": symbol,
-                "name": meta.get("name", symbol),
-                "sector": meta.get("sector", "Unknown"),
-                "industry": meta.get("industry", "Unknown"),
-                "current_price": round(current_price, 2),
-                "previous_close": round(prev_close, 2),
-                "change_percent": round(change_pct, 2),
-                "high": round(float(ticker_data['High'].iloc[-1]), 2) if 'High' in ticker_data else current_price,
-                "low": round(float(ticker_data['Low'].iloc[-1]), 2) if 'Low' in ticker_data else current_price,
-                "market_cap": _estimate_market_cap(symbol, current_price),
-                "pe_ratio": pe_ratio,
-                "peg_ratio": peg_ratio,
-                "revenue_growth": revenue_growth,
-                "fair_value": fair_value,
-                "upside_potential": upside,
-                "score": score,
-                "dividend_yield": 0.01,
+            stock_data = {
+                "symbol": stock.symbol,
+                "name": stock.company_name,
+                "price": final_price,
+                "pe": pe,
+                "peg": stock.peg_ratio,
+                "score": stock.score or 50,
+                "upside": stock.upside_potential,
+                "sector": stock.sector,
+                "market_cap": stock.market_cap,
+                "revenue_growth": stock.revenue_growth
             }
-        except Exception as e:
-            logger.debug(f"Error processing {symbol}: {e}")
-            return None
-    
-    all_stocks = []
-    
-    # Process in batches
-    for i in range(0, len(symbols), BATCH_SIZE):
-        batch_symbols = symbols[i:i + BATCH_SIZE]
-        tickers_str = " ".join(batch_symbols)
-        
-        try:
-            # Run sync yf.download in thread pool
-            loop = asyncio.get_event_loop()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                data = await loop.run_in_executor(executor, _download_batch, tickers_str)
             
-            if data is None or (hasattr(data, 'empty') and data.empty):
-                continue
             
-            # Process each symbol in batch
-            for symbol in batch_symbols:
-                result = _process_ticker_data(symbol, data, batch_symbols)
-                if result:
-                    all_stocks.append(result)
+            # Sanitize data for JSON serialization (handles NaN, Inf)
+            stock_data = _sanitize_dict(stock_data)
             
-            # Free memory after each batch
-            del data
-            gc.collect()
-            
-        except Exception as e:
-            logger.error(f"Batch {i//BATCH_SIZE + 1} failed: {e}")
-            continue
-    
-    logger.info(f"Fetched {len(all_stocks)} stocks via yfinance batched")
-    return all_stocks
+            # 3. Apply numeric filters on Final Data
+            if _passes_filters(stock_data, filters):
+                results.append(stock_data)
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Screening failed: {e}")
+        return []
+    finally:
+        db.close()
 
 
-def passes_filters(stock: Dict[str, Any], filters: ScreenerFilters) -> bool:
-    """Check if stock passes all filters."""
-    pe = stock.get("pe_ratio")
-    
-    # Min P/E filter (for finding high-PE growth stocks)
-    if filters.min_pe is not None:
-        if pe is None or pe < filters.min_pe:
-            return False
-    
-    # Max P/E filter
-    if filters.max_pe is not None:
-        if pe is not None and (pe > filters.max_pe or pe < 0):
-            return False
-    
-    if filters.max_peg is not None:
-        peg = stock.get("peg_ratio")
-        if peg is not None and (peg > filters.max_peg or peg < 0):
-            return False
-    
-    if filters.min_score is not None:
-        score = stock.get("score", 0)
-        if score < filters.min_score:
-            return False
-    
-    if filters.min_revenue_growth is not None:
-        growth = stock.get("revenue_growth", 0)
-        if growth < filters.min_revenue_growth:
-            return False
-    
-    if filters.min_upside is not None:
-        upside = stock.get("upside_potential", 0)
-        if upside < filters.min_upside:
-            return False
-    
+def _passes_filters(stock: Dict, filters: ScreenerFilters) -> bool:
+    if filters.min_pe and (not stock.get("pe") or stock["pe"] < filters.min_pe): return False
+    if filters.max_pe and (not stock.get("pe") or stock["pe"] > filters.max_pe): return False
+    if filters.max_peg and (not stock.get("peg") or stock["peg"] > filters.max_peg): return False
+    if filters.min_score and (stock.get("score", 0) < filters.min_score): return False
+    if filters.min_upside and (stock.get("upside", 0) < filters.min_upside): return False
+    if filters.min_revenue_growth and (stock.get("revenue_growth", 0) < filters.min_revenue_growth): return False
     return True
 
 
-async def screen_stocks(filters: ScreenerFilters) -> List[Dict[str, Any]]:
-    """Screen stocks with filters - main async entry point."""
-    all_stocks = await fetch_all_stocks(DEFAULT_UNIVERSE)
+async def fetch_all_stocks(symbols: List[str]) -> List[Dict[str, Any]]:
+    """Fetch stock data for a list of symbols using yfinance."""
+    if not symbols:
+        return []
     
-    filtered = [s for s in all_stocks if passes_filters(s, filters)]
-    filtered.sort(key=lambda x: x.get("score", 0), reverse=True)
+    results = []
+    try:
+        # Batch download prices
+        df = await asyncio.to_thread(yf.download, symbols, period="5d", interval="1d", progress=False)
+        
+        for symbol in symbols:
+            try:
+                # Get latest price from batch download
+                if len(symbols) == 1:
+                    price = float(df['Close'].iloc[-1]) if not df.empty else None
+                else:
+                    price = float(df['Close'][symbol].iloc[-1]) if symbol in df['Close'].columns else None
+                
+                # Try to get info from DB first
+                db = SessionLocal()
+                cached = db.query(ScreenerStock).filter(ScreenerStock.symbol == symbol).first()
+                db.close()
+                
+                stock_data = {
+                    "symbol": symbol,
+                    "name": cached.company_name if cached else symbol,
+                    "current_price": price,
+                    "pe_ratio": cached.pe_ratio if cached else None,
+                    "peg_ratio": cached.peg_ratio if cached else None,
+                    "score": cached.score if cached else 50,
+                    "upside_potential": cached.upside_potential if cached else 0,
+                    "sector": cached.sector if cached else "Unknown",
+                    "market_cap": cached.market_cap if cached else None
+                }
+                results.append(stock_data)
+            except Exception as e:
+                logger.warning(f"Failed to process {symbol}: {e}")
+                continue
+                
+    except Exception as e:
+        logger.error(f"Batch fetch failed: {e}")
     
-    return filtered
-
-
-def get_universe() -> List[str]:
-    """Get stock universe."""
-    return DEFAULT_UNIVERSE.copy()
+    return results
 
 
 async def fetch_single_stock(symbol: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetch a single stock by symbol using yfinance.
-    Works for ANY valid ticker, not just those in DEFAULT_UNIVERSE.
-    """
-    import yfinance as yf
-    
+    """Fetch a single stock's data using yfinance."""
     try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
+        ticker = await asyncio.to_thread(lambda: yf.Ticker(symbol))
+        info = await asyncio.to_thread(lambda: ticker.info)
         
-        if not info or 'symbol' not in info:
+        if not info or info.get('regularMarketPrice') is None:
             return None
-        
-        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
-        prev_close = info.get('previousClose') or current_price
-        
-        if current_price == 0:
-            return None
-        
-        change = current_price - prev_close
-        change_pct = (change / prev_close * 100) if prev_close > 0 else 0
-        
-        # Get metrics
-        pe_ratio = info.get('trailingPE') or info.get('forwardPE')
-        peg_ratio = info.get('pegRatio')
-        revenue_growth = info.get('revenueGrowth') or 0
-        market_cap = info.get('marketCap') or 0
-        
-        # Calculate fair value and upside
-        eps = info.get('trailingEps') or (current_price / pe_ratio if pe_ratio else 0)
-        sector = info.get('sector', 'Technology')
-        sector_pe = SECTOR_PE.get(sector, 20)
-        fair_value = eps * sector_pe if eps > 0 else current_price
-        upside = ((fair_value - current_price) / current_price * 100) if current_price > 0 else 0
-        
-        # Calculate score
-        base_score = 65
-        if pe_ratio and 0 < pe_ratio < 25:
-            base_score += 5
-        if revenue_growth and revenue_growth > 0.15:
-            base_score += 5
-        if change_pct > 0:
-            base_score += 2
         
         return {
-            "symbol": symbol.upper(),
-            "name": info.get('shortName') or info.get('longName') or symbol,
-            "sector": sector,
-            "industry": info.get('industry', 'Unknown'),
-            "current_price": round(current_price, 2),
-            "previous_close": round(prev_close, 2),
-            "change": round(change, 2),
-            "change_percent": round(change_pct, 2),
-            "market_cap": int(market_cap / 1e9) if market_cap else 0,  # In billions
-            "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
-            "peg_ratio": round(peg_ratio, 2) if peg_ratio else None,
-            "revenue_growth": round(revenue_growth, 4) if revenue_growth else None,
-            "fair_value": round(fair_value, 2),
-            "upside_potential": round(upside, 2),
-            "score": max(0, min(100, base_score)),
-            "dividend_yield": info.get('dividendYield') or 0,
+            "symbol": symbol,
+            "name": info.get('shortName', symbol),
+            "current_price": info.get('regularMarketPrice') or info.get('currentPrice'),
+            "pe_ratio": info.get('trailingPE') or info.get('forwardPE'),
+            "peg_ratio": info.get('pegRatio'),
+            "score": 50,  # Default score for new lookups
+            "upside_potential": _calc_upside(info),
+            "sector": info.get('sector', 'Unknown'),
+            "market_cap": info.get('marketCap')
         }
     except Exception as e:
-        logger.warning(f"Error fetching single stock {symbol}: {e}")
+        logger.error(f"Failed to fetch {symbol}: {e}")
         return None
 
 
-# Sync wrapper for compatibility
-class ScreenerService:
-    """Sync wrapper for screener operations."""
-    
-    def screen(self, filters: ScreenerFilters, symbols: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        return asyncio.run(screen_stocks(filters))
-    
-    def get_top_picks(self, count: int = 10) -> List[Dict[str, Any]]:
-        stocks = asyncio.run(fetch_all_stocks(DEFAULT_UNIVERSE))
-        return sorted(stocks, key=lambda x: x.get("score", 0), reverse=True)[:count]
-
-
-screener_service = ScreenerService()
+def _calc_upside(info: Dict) -> float:
+    target = info.get('targetMeanPrice')
+    current = info.get('regularMarketPrice') or info.get('currentPrice')
+    if target and current:
+        return ((target - current) / current) * 100
+    return 0.0

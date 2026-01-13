@@ -345,3 +345,26 @@ class WatchlistItem(Base):
     notes = Column(String(500))
     added_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
+# ============ SCREENER CACHE ============
+
+class ScreenerStock(Base):
+    """Cached stock data for screener to avoid API rate limits."""
+    __tablename__ = "screener_stocks"
+
+    symbol = Column(String(20), primary_key=True, index=True)
+    company_name = Column(String(255))
+    sector = Column(String(100), index=True)
+    market = Column(String(50), index=True)  # SP500, NASDAQ100, UK
+    
+    current_price = Column(Float)
+    pe_ratio = Column(Float)
+    peg_ratio = Column(Float)
+    eps_ttm = Column(Float)  # Added for live P/E calc
+    revenue_growth = Column(Float)
+    market_cap = Column(Float)
+    score = Column(Float)
+    upside_potential = Column(Float)
+    
+    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+

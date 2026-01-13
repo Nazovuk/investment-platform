@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import os
 
 from routers import screener, optimizer, backtest, portfolio, currency, auth, ai_recommendations, alerts, stock_detail, market, fx, economic
+from services.screener import initialize_screener_data
 from database import engine, Base
 
 
@@ -17,6 +18,8 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown events."""
     # Startup: Create database tables
     Base.metadata.create_all(bind=engine)
+    # Initialize Screener Data (Seed S&P 500)
+    await initialize_screener_data()
     print("🚀 NazovInvest API is starting up...")
     yield
     # Shutdown

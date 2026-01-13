@@ -10,58 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 import os
+from .stock_detail import fetch_stock_quote
+from ..data.indices import DEFAULT_UNIVERSE, SP500_TICKERS, NASDAQ100_TICKERS, FTSE100_TICKERS
 
 logger = logging.getLogger(__name__)
 
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d58lr11r01qvj8ihdt60d58lr11r01qvj8ihdt6g")
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
-
-# Stock universe - 200+ stocks covering S&P 500 major components
-DEFAULT_UNIVERSE = [
-    # Technology (40)
-    "AAPL", "MSFT", "GOOGL", "GOOG", "META", "NVDA", "AVGO", "ADBE", "CRM", "ORCL",
-    "AMD", "INTC", "QCOM", "TXN", "AMAT", "LRCX", "MU", "MRVL", "ADI", "KLAC",
-    "SNPS", "CDNS", "FTNT", "PANW", "NOW", "INTU", "ADP", "PAYX", "WDAY", "DDOG",
-    "ZS", "CRWD", "NET", "SNOW", "PLTR", "TEAM", "SPLK", "DOCU", "ZM", "OKTA",
-    # Consumer Cyclical (30)
-    "AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "TGT", "LOW", "TJX", "ROST",
-    "CMG", "MAR", "HLT", "YUM", "DPZ", "BKNG", "ABNB", "EXPE", "ORLY", "AZO",
-    "EBAY", "ETSY", "W", "CHWY", "ULTA", "BBY", "DHI", "LEN", "PHM", "NVR",
-    # Financial Services (35)
-    "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "C", "AXP", "SCHW",
-    "BLK", "SPGI", "ICE", "CME", "MCO", "BX", "KKR", "APO", "COIN", "PYPL",
-    "SQ", "TROW", "NDAQ", "CB", "AIG", "AFL", "MET", "PRU", "ALL", "TRV",
-    "PNC", "USB", "TFC", "COF", "DFS",
-    # Healthcare (35)
-    "UNH", "JNJ", "LLY", "PFE", "ABBV", "MRK", "TMO", "ABT", "DHR", "BMY",
-    "AMGN", "GILD", "ISRG", "MDT", "SYK", "BSX", "ZBH", "EW", "REGN", "VRTX",
-    "BIIB", "MRNA", "CVS", "CI", "HUM", "DXCM", "IDXX", "IQV", "A", "BDX",
-    "MTD", "RMD", "HOLX", "ALGN", "CNC",
-    # Industrials (30)
-    "CAT", "BA", "GE", "HON", "RTX", "LMT", "DE", "UNP", "UPS", "FDX",
-    "ETN", "EMR", "ITW", "ROK", "PH", "CMI", "WM", "RSG", "FAST", "GWW",
-    "NSC", "CSX", "DAL", "UAL", "AAL", "LUV", "ODFL", "JBHT", "CHRW", "XPO",
-    # Consumer Defensive (20)
-    "PG", "KO", "PEP", "WMT", "COST", "PM", "MO", "MDLZ", "CL", "KMB",
-    "GIS", "K", "HSY", "TSN", "SJM", "KHC", "CAG", "CPB", "HRL", "MKC",
-    # Energy (15)
-    "XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO", "OXY", "HAL",
-    "DVN", "HES", "FANG", "PXD", "BKR",
-    # Communication Services (15)
-    "DIS", "NFLX", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO", "ATVI",
-    "WBD", "PARA", "FOX", "LYV", "OMC",
-    # Real Estate (15)
-    "PLD", "AMT", "EQIX", "CCI", "PSA", "O", "DLR", "WELL", "AVB", "EQR",
-    "SPG", "VTR", "ARE", "BXP", "REG",
-    # Utilities (10)
-    "NEE", "DUK", "SO", "D", "AEP", "SRE", "EXC", "XEL", "WEC", "ES",
-    # Materials (10)
-    "LIN", "APD", "SHW", "ECL", "FCX", "NEM", "NUE", "VMC", "MLM", "DOW",
-    # Speculative / Growth (10)
-    "RIVN", "NIO", "LCID", "SOFI", "ENPH", "SEDG", "PLUG", "FSLR", "RUN", "SPWR",
-    # ETFs for broader exposure (optional symbols that work with yfinance)
-    "BRK.B"
-]
 
 # Static metadata for all stocks
 STOCK_METADATA = {

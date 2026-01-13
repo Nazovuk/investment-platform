@@ -22,6 +22,7 @@ class ScreenerRequest(BaseModel):
     min_upside: Optional[float] = None
     min_score: Optional[int] = None
     sectors: Optional[List[str]] = None
+    market: Optional[str] = None
 
 
 @router.get("/")
@@ -33,7 +34,8 @@ async def get_screener_results(
     min_revenue_growth: Optional[float] = Query(None, description="Minimum revenue growth"),
     min_upside: Optional[float] = Query(None, description="Minimum upside potential (%)"),
     min_score: Optional[int] = Query(None, description="Minimum investment score"),
-    sector: Optional[str] = Query(None, description="Filter by sector")
+    sector: Optional[str] = Query(None, description="Filter by sector"),
+    market: Optional[str] = Query(None, description="Filter by market (e.g., 'NASDAQ', 'NYSE')")
 ):
     """
     Get screened stocks. No filters by default = returns ALL stocks.

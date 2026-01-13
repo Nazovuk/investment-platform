@@ -31,7 +31,8 @@ export default function ScreenerPage() {
         maxPEG: 0,      // 0 = no limit
         minScore: 0,    // 0 = no minimum
         minUpside: 0,   // 0 = no minimum
-        sector: ''
+        sector: '',
+        market: ''
     });
 
     // Fetch stocks from API
@@ -47,7 +48,8 @@ export default function ScreenerPage() {
                 max_peg: filters.maxPEG > 0 ? filters.maxPEG : undefined,
                 min_score: filters.minScore > 0 ? filters.minScore : undefined,
                 min_upside: filters.minUpside > 0 ? filters.minUpside / 100 : undefined,
-                sector: filters.sector || undefined
+                sector: filters.sector || undefined,
+                market: filters.market || undefined
             });
 
             setStocks(response.results || []);
@@ -182,6 +184,19 @@ export default function ScreenerPage() {
                     {/* Column 1: Sector & Score */}
                     <div className="space-y-6">
                         <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <label className="block text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Market / Index</label>
+                            <select
+                                className="w-full bg-[#0a0a0f] border border-gray-700 rounded-md py-2 px-3 text-white focus:border-indigo-500 outline-none"
+                                value={filters.market}
+                                onChange={(e) => setFilters({ ...filters, market: e.target.value })}
+                            >
+                                <option value="">Top 200 (Default)</option>
+                                <option value="S&P 500">S&P 500 (Top 200)</option>
+                                <option value="NASDAQ 100">NASDAQ 100</option>
+                                <option value="FTSE 100">FTSE 100 (UK)</option>
+                            </select>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
                             <label className="block text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Sector</label>
                             <select
                                 className="w-full bg-[#0a0a0f] border border-gray-700 rounded-md py-2 px-3 text-white focus:border-indigo-500 outline-none"
@@ -266,7 +281,7 @@ export default function ScreenerPage() {
                         <div className="flex gap-4 items-end h-full pb-1">
                             <button
                                 onClick={() => {
-                                    setFilters({ maxPE: 0, maxPEG: 0, minScore: 0, minUpside: 0, sector: '' });
+                                    setFilters({ maxPE: 0, maxPEG: 0, minScore: 0, minUpside: 0, sector: '', market: '' });
                                     setSearchTerm('');
                                     setStocks([]); // Clear results on reset
                                     setHasSearched(false);

@@ -33,6 +33,7 @@ export const screenerApi = {
         min_upside?: number;
         min_score?: number;
         sector?: string;
+        market?: string;
     }) => {
         const searchParams = new URLSearchParams();
         if (params) {

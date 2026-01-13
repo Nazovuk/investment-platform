@@ -25,6 +25,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 // Screener API
 export const screenerApi = {
     getResults: (params?: {
+        search?: string;
         min_pe?: number;
         max_pe?: number;
         max_peg?: number;

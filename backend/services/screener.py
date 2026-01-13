@@ -510,6 +510,74 @@ def get_universe() -> List[str]:
     return DEFAULT_UNIVERSE.copy()
 
 
+async def fetch_single_stock(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch a single stock by symbol using yfinance.
+    Works for ANY valid ticker, not just those in DEFAULT_UNIVERSE.
+    """
+    import yfinance as yf
+    
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        
+        if not info or 'symbol' not in info:
+            return None
+        
+        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
+        prev_close = info.get('previousClose') or current_price
+        
+        if current_price == 0:
+            return None
+        
+        change = current_price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close > 0 else 0
+        
+        # Get metrics
+        pe_ratio = info.get('trailingPE') or info.get('forwardPE')
+        peg_ratio = info.get('pegRatio')
+        revenue_growth = info.get('revenueGrowth') or 0
+        market_cap = info.get('marketCap') or 0
+        
+        # Calculate fair value and upside
+        eps = info.get('trailingEps') or (current_price / pe_ratio if pe_ratio else 0)
+        sector = info.get('sector', 'Technology')
+        sector_pe = SECTOR_PE.get(sector, 20)
+        fair_value = eps * sector_pe if eps > 0 else current_price
+        upside = ((fair_value - current_price) / current_price * 100) if current_price > 0 else 0
+        
+        # Calculate score
+        base_score = 65
+        if pe_ratio and 0 < pe_ratio < 25:
+            base_score += 5
+        if revenue_growth and revenue_growth > 0.15:
+            base_score += 5
+        if change_pct > 0:
+            base_score += 2
+        
+        return {
+            "symbol": symbol.upper(),
+            "name": info.get('shortName') or info.get('longName') or symbol,
+            "sector": sector,
+            "industry": info.get('industry', 'Unknown'),
+            "current_price": round(current_price, 2),
+            "previous_close": round(prev_close, 2),
+            "change": round(change, 2),
+            "change_percent": round(change_pct, 2),
+            "market_cap": int(market_cap / 1e9) if market_cap else 0,  # In billions
+            "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
+            "peg_ratio": round(peg_ratio, 2) if peg_ratio else None,
+            "revenue_growth": round(revenue_growth, 4) if revenue_growth else None,
+            "fair_value": round(fair_value, 2),
+            "upside_potential": round(upside, 2),
+            "score": max(0, min(100, base_score)),
+            "dividend_yield": info.get('dividendYield') or 0,
+        }
+    except Exception as e:
+        logger.warning(f"Error fetching single stock {symbol}: {e}")
+        return None
+
+
 # Sync wrapper for compatibility
 class ScreenerService:
     """Sync wrapper for screener operations."""

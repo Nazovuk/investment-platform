@@ -19,14 +19,12 @@ export default function ScreenerPage() {
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filters - expanded defaults to show more stocks
+    // Filters - default values that show all stocks
     const [filters, setFilters] = useState({
-        minPE: 0,
-        maxPE: 500,
-        maxPEG: 5.0,
-        minScore: 0,
-        minUpside: -50,
-        minRevenueGrowth: -100,
+        maxPE: 0,       // 0 = no limit
+        maxPEG: 0,      // 0 = no limit
+        minScore: 0,    // 0 = no minimum
+        minUpside: 0,   // 0 = no minimum
         sector: ''
     });
 
@@ -37,12 +35,11 @@ export default function ScreenerPage() {
             setError(null);
 
             const response = await screenerApi.getResults({
-                min_pe: filters.minPE > 0 ? filters.minPE : undefined,
-                max_pe: filters.maxPE,
-                max_peg: filters.maxPEG,
-                min_score: filters.minScore,
-                min_upside: filters.minUpside / 100,
-                min_revenue_growth: filters.minRevenueGrowth / 100,
+                search: searchTerm || undefined,
+                max_pe: filters.maxPE > 0 ? filters.maxPE : undefined,
+                max_peg: filters.maxPEG > 0 ? filters.maxPEG : undefined,
+                min_score: filters.minScore > 0 ? filters.minScore : undefined,
+                min_upside: filters.minUpside > 0 ? filters.minUpside / 100 : undefined,
                 sector: filters.sector || undefined
             });
 
@@ -51,25 +48,27 @@ export default function ScreenerPage() {
         } catch (err) {
             console.error('Failed to fetch stocks:', err);
             setError('Failed to load stocks. Using cached data.');
-            // Keep existing stocks on error
         } finally {
             setIsLoading(false);
         }
-    }, [filters]);
+    }, [filters]); // Removed searchTerm from dependencies to avoid auto-triggering on typing
 
-    // Initial fetch
+    // Fetch when filters change or when manually triggered
     useEffect(() => {
+        // Debounce fetch if needed, but for now we rely on Apply button or blur
         fetchStocks();
-    }, []);
+    }, [fetchStocks]);
 
-    // Auto-refresh every 60 seconds
+    // Handle Search Submit
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchStocks();
+    };
+
+    // Auto-refresh
     useEffect(() => {
         if (!autoRefresh) return;
-
-        const interval = setInterval(() => {
-            fetchStocks();
-        }, 60000); // 60 seconds
-
+        const interval = setInterval(fetchStocks, 60000);
         return () => clearInterval(interval);
     }, [autoRefresh, fetchStocks]);
 
@@ -83,7 +82,6 @@ export default function ScreenerPage() {
     };
 
     const handleStockClick = (symbol: string) => {
-        // Open in popup window - resizable, smaller than main page
         const width = 1200;
         const height = 800;
         const left = (window.screen.width - width) / 2;
@@ -97,374 +95,269 @@ export default function ScreenerPage() {
 
     const filteredAndSortedStocks = useMemo(() => {
         let result = [...stocks];
-
-        // Apply search filter (client-side for responsiveness)
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            result = result.filter(s =>
-                s.symbol.toLowerCase().includes(term) ||
-                s.name?.toLowerCase().includes(term)
-            );
-        }
-
-        // Apply sorting
+        // Sort
         result.sort((a, b) => {
             const aVal = a[sortKey] ?? 0;
             const bVal = b[sortKey] ?? 0;
             return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
         });
-
         return result;
-    }, [stocks, searchTerm, sortKey, sortDir]);
+    }, [stocks, sortKey, sortDir]);
 
-    const getSortIcon = (key: SortKey) => {
-        if (sortKey !== key) return '↕';
-        return sortDir === 'asc' ? '↑' : '↓';
-    };
-
-    const getScoreColor = (score: number) => {
-        if (score >= 80) return 'excellent';
-        if (score >= 60) return 'good';
-        if (score >= 40) return 'average';
-        return 'poor';
-    };
-
-    const formatMarketCap = (cap: number) => {
-        if (!cap) return '—';
-        if (cap >= 1e12) return `$${(cap / 1e12).toFixed(1)}T`;
-        if (cap >= 1e9) return `$${(cap / 1e9).toFixed(0)}B`;
-        if (cap >= 1e6) return `$${(cap / 1e6).toFixed(0)}M`;
-        return `$${cap}`;
-    };
-
-    const applyFilters = () => {
-        fetchStocks();
-    };
+    const getSortIcon = (key: SortKey) => sortKey !== key ? '↕' : sortDir === 'asc' ? '↑' : '↓';
 
     return (
-        <div>
-            {/* Page Header */}
-            <header className="page-header">
+        <div className="container mx-auto p-4 max-w-[1600px]">
+            {/* Modern Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="page-title">Stock Screener</h1>
-                    <p className="page-subtitle">
-                        Find investment opportunities based on your criteria
-                        {lastUpdate && (
-                            <span className="text-xs text-muted" style={{ marginLeft: '1rem' }}>
-                                Last updated: {lastUpdate.toLocaleTimeString()}
-                            </span>
-                        )}
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+                        Market Screener
+                    </h1>
+                    <p className="text-muted mt-1">
+                        Analyze top opportunities or search any global ticker
                     </p>
                 </div>
-                <div className="flex gap-md items-center">
-                    <label className="flex items-center gap-sm text-sm">
+
+                <div className="flex items-center gap-4 bg-card/50 p-2 rounded-lg border border-white/5">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none px-2">
                         <input
                             type="checkbox"
                             checked={autoRefresh}
                             onChange={(e) => setAutoRefresh(e.target.checked)}
-                            style={{ accentColor: 'var(--accent-primary)' }}
+                            className="accent-indigo-500 w-4 h-4"
                         />
-                        Auto-refresh
+                        <span className="text-gray-300">Live Updates</span>
                     </label>
+                    <div className="h-6 w-px bg-white/10"></div>
                     <button
-                        className="btn btn-secondary"
                         onClick={fetchStocks}
+                        className="flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-all border border-indigo-500/20"
                         disabled={isLoading}
                     >
-                        {isLoading ? '⏳' : '🔄'} Refresh
+                        {isLoading ? (
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        )}
+                        Refresh
                     </button>
                 </div>
-            </header>
+            </div>
 
-            {/* Error Banner */}
-            {error && (
-                <div className="card mb-lg" style={{
-                    background: 'var(--danger-light)',
-                    border: '1px solid var(--danger)',
-                    padding: 'var(--spacing-md)'
-                }}>
-                    <span style={{ color: 'var(--danger)' }}>⚠️ {error}</span>
-                </div>
-            )}
+            {/* Main Control Panel - Glassmorphism */}
+            <div className="bg-[#1a1a26]/80 backdrop-blur-md border border-white/10 rounded-xl p-6 mb-8 shadow-xl">
 
-            {/* Filters Panel */}
-            <div className="filters-panel">
-                <div className="filters-grid">
-                    <div className="filter-group">
-                        <label className="filter-label">Search</label>
+                {/* Search Bar - Prominent */}
+                <form onSubmit={handleSearchSubmit} className="mb-8 relative">
+                    <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <svg className="h-6 w-6 text-gray-400 group-focus-within:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
                         <input
                             type="text"
-                            className="input"
-                            placeholder="Symbol or name..."
+                            className="block w-full pl-12 pr-4 py-4 bg-[#0f0f15] border border-white/10 rounded-lg text-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all shadow-inner"
+                            placeholder="Type a symbol (e.g., TSLA, ONDS, NVDA) or leave empty to screen top stocks..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Sector</label>
-                        <select
-                            className="input"
-                            value={filters.sector}
-                            onChange={(e) => setFilters({ ...filters, sector: e.target.value })}
-                            style={{ padding: '8px 12px' }}
-                        >
-                            <option value="">All Sectors</option>
-                            <option value="Technology">Technology</option>
-                            <option value="Healthcare">Healthcare</option>
-                            <option value="Financial Services">Financial Services</option>
-                            <option value="Consumer Cyclical">Consumer Cyclical</option>
-                            <option value="Consumer Defensive">Consumer Defensive</option>
-                            <option value="Industrials">Industrials</option>
-                            <option value="Energy">Energy</option>
-                            <option value="Communication Services">Communication Services</option>
-                            <option value="Real Estate">Real Estate</option>
-                            <option value="Utilities">Utilities</option>
-                            <option value="Materials">Materials</option>
-                        </select>
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Min P/E Ratio: {filters.minPE}</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="0" max="100"
-                            value={filters.minPE}
-                            onChange={(e) => setFilters({ ...filters, minPE: Number(e.target.value) })}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Max P/E Ratio: {filters.maxPE}</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="5" max="500" step="5"
-                            value={filters.maxPE}
-                            onChange={(e) => setFilters({ ...filters, maxPE: Number(e.target.value) })}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Max PEG Ratio: {filters.maxPEG}</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="0" max="5" step="0.1"
-                            value={filters.maxPEG}
-                            onChange={(e) => setFilters({ ...filters, maxPEG: Number(e.target.value) })}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Min Score: {filters.minScore}</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="0" max="100"
-                            value={filters.minScore}
-                            onChange={(e) => setFilters({ ...filters, minScore: Number(e.target.value) })}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Min Upside: {filters.minUpside}%</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="0" max="50"
-                            value={filters.minUpside}
-                            onChange={(e) => setFilters({ ...filters, minUpside: Number(e.target.value) })}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label className="filter-label">Min Revenue Growth: {filters.minRevenueGrowth}%</label>
-                        <input
-                            type="range"
-                            className="range-slider"
-                            min="0" max="30"
-                            value={filters.minRevenueGrowth}
-                            onChange={(e) => setFilters({ ...filters, minRevenueGrowth: Number(e.target.value) })}
-                        />
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-lg">
-                    <span className="text-muted text-sm">
-                        {isLoading ? 'Loading...' : `Showing ${filteredAndSortedStocks.length} stocks`}
-                    </span>
-                    <div className="flex gap-md">
                         <button
-                            className="btn btn-ghost"
-                            onClick={() => {
-                                setFilters({ minPE: 0, maxPE: 500, maxPEG: 5.0, minScore: 0, minUpside: -50, minRevenueGrowth: -100, sector: '' });
-                            }}
+                            type="submit"
+                            className="absolute right-2 top-2 bottom-2 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md font-medium transition-colors shadow-lg shadow-indigo-500/20"
                         >
-                            Reset Filters
+                            Search
                         </button>
-                        <button
-                            className="btn btn-primary"
-                            onClick={applyFilters}
-                            disabled={isLoading}
-                        >
-                            Apply Filters
-                        </button>
+                    </div>
+                </form>
+
+                <div className="h-px bg-white/5 mb-8"></div>
+
+                {/* Filters Grid - 3 Columns */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                    {/* Column 1: Sector & Score */}
+                    <div className="space-y-6">
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <label className="block text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Sector</label>
+                            <select
+                                className="w-full bg-[#0a0a0f] border border-gray-700 rounded-md py-2 px-3 text-white focus:border-indigo-500 outline-none"
+                                value={filters.sector}
+                                onChange={(e) => setFilters({ ...filters, sector: e.target.value })}
+                            >
+                                <option value="">All Sectors</option>
+                                <option value="Technology">Technology</option>
+                                <option value="Healthcare">Healthcare</option>
+                                <option value="Financial Services">Financial</option>
+                                <option value="Consumer Cyclical">Consumer Cyclical</option>
+                                <option value="Consumer Defensive">Consumer Defensive</option>
+                                <option value="Industrials">Industrials</option>
+                                <option value="Energy">Energy</option>
+                                <option value="Communication Services">Communication</option>
+                                <option value="Real Estate">Real Estate</option>
+                                <option value="Utilities">Utilities</option>
+                                <option value="Materials">Materials</option>
+                            </select>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-semibold text-gray-300">Min Score</label>
+                                <span className="text-indigo-400 font-mono">{filters.minScore || '0'}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0" max="100" step="10"
+                                value={filters.minScore}
+                                onChange={(e) => setFilters({ ...filters, minScore: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Column 2: Valuation (P/E & PEG) */}
+                    <div className="space-y-6">
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-semibold text-gray-300">Max P/E Ratio</label>
+                                <span className="text-indigo-400 font-mono">{filters.maxPE || 'Unlimited'}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0" max="200" step="5"
+                                value={filters.maxPE}
+                                onChange={(e) => setFilters({ ...filters, maxPE: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-2">
+                                <span>0</span>
+                                <span>100</span>
+                                <span>200+</span>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-semibold text-gray-300">Max PEG Ratio</label>
+                                <span className="text-indigo-400 font-mono">{filters.maxPEG || 'Unlimited'}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0" max="5" step="0.5"
+                                value={filters.maxPEG}
+                                onChange={(e) => setFilters({ ...filters, maxPEG: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Column 3: Upside & Actions */}
+                    <div className="space-y-6">
+                        <div className="bg-white/5 p-4 rounded-lg border border-white/5">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-semibold text-gray-300">Min Upside Potential</label>
+                                <span className="text-emerald-400 font-mono">{filters.minUpside || '0'}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0" max="100" step="5"
+                                value={filters.minUpside}
+                                onChange={(e) => setFilters({ ...filters, minUpside: Number(e.target.value) })}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                            />
+                        </div>
+
+                        <div className="flex gap-4 items-end h-full pb-1">
+                            <button
+                                onClick={() => {
+                                    setFilters({ maxPE: 0, maxPEG: 0, minScore: 0, minUpside: 0, sector: '' });
+                                    setSearchTerm('');
+                                    fetchStocks();
+                                }}
+                                className="flex-1 py-3 rounded-lg border border-white/10 hover:bg-white/5 text-gray-400 hover:text-white transition-colors text-sm font-medium"
+                            >
+                                Reset All
+                            </button>
+                            <button
+                                onClick={fetchStocks}
+                                className="flex-1 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-500/20 transition-all transform active:scale-95"
+                            >
+                                Apply Filters
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Results Table */}
-            <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <h3 style={{ color: 'white', fontSize: '16px', fontWeight: '600', margin: 0 }}>
-                        Screener Results ({filteredAndSortedStocks.length} stocks)
+            {/* Results Section */}
+            <div className="bg-[#1a1a26]/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl min-h-[400px]">
+                <div className="flex justify-between items-center p-4 border-b border-white/5 bg-white/5">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <span className="text-indigo-400">●</span> Results ({stocks.length})
                     </h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                            onClick={() => {
-                                const columns: ExportColumn[] = [
-                                    { key: 'symbol', label: 'Symbol' },
-                                    { key: 'name', label: 'Name' },
-                                    { key: 'sector', label: 'Sector' },
-                                    { key: 'current_price', label: 'Price' },
-                                    { key: 'change_percent', label: 'Change %' },
-                                    { key: 'pe_ratio', label: 'P/E' },
-                                    { key: 'peg_ratio', label: 'PEG' },
-                                    { key: 'upside_potential', label: 'Upside %' },
-                                    { key: 'score', label: 'Score' },
-                                ];
-                                exportToCSV(filteredAndSortedStocks as unknown as Record<string, unknown>[], columns, 'screener_results');
-                            }}
-                            style={{
-                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
-                                background: 'rgba(99,102,241,0.2)', color: '#a5b4fc',
-                                border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer'
-                            }}
-                        >
-                            📥 CSV
-                        </button>
-                        <button
-                            onClick={async () => {
-                                const columns: ExportColumn[] = [
-                                    { key: 'symbol', label: 'Symbol' },
-                                    { key: 'name', label: 'Name' },
-                                    { key: 'current_price', label: 'Price' },
-                                    { key: 'pe_ratio', label: 'P/E' },
-                                    { key: 'upside_potential', label: 'Upside %' },
-                                    { key: 'score', label: 'Score' },
-                                ];
-                                const success = await copyToClipboard(filteredAndSortedStocks as unknown as Record<string, unknown>[], columns);
-                                if (success) alert('Copied to clipboard! Paste into Excel or Google Sheets.');
-                            }}
-                            style={{
-                                padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
-                                background: 'rgba(16,185,129,0.2)', color: '#6ee7b7',
-                                border: '1px solid rgba(16,185,129,0.3)', cursor: 'pointer'
-                            }}
-                        >
-                            📋 Copy
-                        </button>
+                    <div className="flex gap-2">
+                        <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => copyToClipboard(stocks as any, [])}>Copy</button>
+                        <button className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-sm border border-white/5 text-gray-300" onClick={() => exportToCSV(stocks as any, [], 'screener')}>CSV</button>
                     </div>
                 </div>
-                {isLoading && stocks.length === 0 ? (
-                    <div className="text-center" style={{ padding: 'var(--spacing-2xl)' }}>
-                        <div className="spinner" style={{ margin: '0 auto var(--spacing-lg)' }}></div>
-                        <p className="text-muted">Loading stock data from yfinance...</p>
-                    </div>
-                ) : (
-                    <div className="table-container">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th onClick={() => handleSort('symbol')}>Symbol {getSortIcon('symbol')}</th>
-                                    <th>Name</th>
-                                    <th>Sector</th>
-                                    <th className="text-right" onClick={() => handleSort('current_price')}>Price {getSortIcon('current_price')}</th>
-                                    <th className="text-right" onClick={() => handleSort('pe_ratio')}>P/E {getSortIcon('pe_ratio')}</th>
-                                    <th className="text-right" onClick={() => handleSort('peg_ratio')}>PEG {getSortIcon('peg_ratio')}</th>
-                                    <th className="text-right">Rev Growth</th>
-                                    <th className="text-right">Fair Value</th>
-                                    <th className="text-right" onClick={() => handleSort('upside_potential')}>Upside {getSortIcon('upside_potential')}</th>
-                                    <th className="text-right" onClick={() => handleSort('score')}>Score {getSortIcon('score')}</th>
-                                    <th className="text-right">Market Cap</th>
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-white/5 text-gray-400 text-sm uppercase tracking-wider">
+                                <th onClick={() => handleSort('symbol')} className="p-4 cursor-pointer hover:text-white transition-colors">Symbol {getSortIcon('symbol')}</th>
+                                <th className="p-4">Name</th>
+                                <th className="p-4">Sector</th>
+                                <th onClick={() => handleSort('current_price')} className="p-4 text-right cursor-pointer hover:text-white">Price {getSortIcon('current_price')}</th>
+                                <th onClick={() => handleSort('pe_ratio')} className="p-4 text-right cursor-pointer hover:text-white">P/E {getSortIcon('pe_ratio')}</th>
+                                <th onClick={() => handleSort('score')} className="p-4 text-right cursor-pointer hover:text-white">Score {getSortIcon('score')}</th>
+                                <th onClick={() => handleSort('upside_potential')} className="p-4 text-right cursor-pointer hover:text-white">Upside {getSortIcon('upside_potential')}</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {filteredAndSortedStocks.map((stock) => (
+                                <tr
+                                    key={stock.symbol}
+                                    onClick={() => handleStockClick(stock.symbol)}
+                                    className="hover:bg-white/5 transition-colors cursor-pointer group"
+                                >
+                                    <td className="p-4 font-bold text-indigo-400 group-hover:text-indigo-300">{stock.symbol}</td>
+                                    <td className="p-4 text-gray-300 truncate max-w-[200px]">{stock.name}</td>
+                                    <td className="p-4">
+                                        <span className="px-2 py-1 rounded-full text-xs bg-white/5 text-gray-400 border border-white/5">
+                                            {stock.sector}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right font-mono text-gray-300">${stock.current_price?.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-gray-300">{stock.pe_ratio?.toFixed(1) || '-'}</td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <span className="font-bold text-sm">{stock.score}</span>
+                                            <div className="w-16 h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${(stock.score || 0) >= 70 ? 'bg-emerald-500' : (stock.score || 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                    style={{ width: `${stock.score || 0}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-right font-mono">
+                                        <span className={`${(stock.upside_potential || 0) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {(stock.upside_potential || 0) > 0 ? '+' : ''}{stock.upside_potential?.toFixed(1)}%
+                                        </span>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {filteredAndSortedStocks.map((stock) => (
-                                    <tr key={stock.symbol} onClick={() => handleStockClick(stock.symbol)} style={{ cursor: 'pointer' }} className="hover:bg-white/5 transition-colors">
-                                        <td>
-                                            <span className="font-bold" style={{ color: 'var(--accent-primary)' }}>{stock.symbol}</span>
-                                        </td>
-                                        <td className="truncate" style={{ maxWidth: 180 }}>{stock.name || '—'}</td>
-                                        <td>
-                                            <span className="badge">{stock.sector || '—'}</span>
-                                        </td>
-                                        <td className="text-right font-mono">${stock.current_price?.toFixed(2) || '—'}</td>
-                                        <td className="text-right font-mono">
-                                            {stock.pe_ratio ? stock.pe_ratio.toFixed(1) : '—'}
-                                        </td>
-                                        <td className="text-right font-mono">
-                                            <span className={stock.peg_ratio && stock.peg_ratio < 1 ? 'value-positive' : ''}>
-                                                {stock.peg_ratio ? stock.peg_ratio.toFixed(2) : '—'}
-                                            </span>
-                                        </td>
-                                        <td className="text-right font-mono">
-                                            <span className={stock.revenue_growth && stock.revenue_growth > 0.1 ? 'value-positive' : ''}>
-                                                {stock.revenue_growth ? `${(stock.revenue_growth * 100).toFixed(1)}%` : '—'}
-                                            </span>
-                                        </td>
-                                        <td className="text-right font-mono">
-                                            {stock.fair_value ? `$${stock.fair_value.toFixed(2)}` : '—'}
-                                        </td>
-                                        <td className="text-right">
-                                            <span className={`font-mono font-bold ${stock.upside_potential && stock.upside_potential > 0 ? 'value-positive' : 'value-negative'}`}>
-                                                {stock.upside_potential ? `${stock.upside_potential > 0 ? '+' : ''}${stock.upside_potential.toFixed(1)}%` : '—'}
-                                            </span>
-                                        </td>
-                                        <td className="text-right">
-                                            {stock.score ? (
-                                                <div className="score-indicator">
-                                                    <span className="text-sm font-bold">{stock.score}</span>
-                                                    <div className="score-bar" style={{ width: 50 }}>
-                                                        <div
-                                                            className={`score-fill ${getScoreColor(stock.score)}`}
-                                                            style={{ width: `${stock.score}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : '—'}
-                                        </td>
-                                        <td className="text-right font-mono text-muted">
-                                            {formatMarketCap(stock.market_cap)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {!isLoading && filteredAndSortedStocks.length === 0 && (
-                    <div className="text-center" style={{ padding: 'var(--spacing-2xl)' }}>
-                        <p className="text-muted">No stocks match your filters</p>
-                        <button
-                            className="btn btn-primary mt-lg"
-                            onClick={() => {
-                                setFilters({ minPE: 0, maxPE: 500, maxPEG: 5.0, minScore: 0, minUpside: -50, minRevenueGrowth: -100, sector: '' });
-                                fetchStocks();
-                            }}
-                        >
-                            Reset Filters
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Data Source Notice */}
-            <div className="text-center text-xs text-muted mt-lg">
-                📊 Data source: Finnhub (real-time) • Click any stock for detailed analysis
+                            ))}
+                            {filteredAndSortedStocks.length === 0 && !isLoading && (
+                                <tr>
+                                    <td colSpan={7} className="p-12 text-center text-gray-500">
+                                        No stocks found matching your criteria. Try adjusting filters or searching for a specific symbol.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

@@ -224,7 +224,7 @@ class Portfolio(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for backward compat
     name = Column(String(100), nullable=False, default="My Portfolio")
-    reporting_currency = Column(String(3), default="GBP")  # Portfolio display currency
+    currency = Column(String(3), default="GBP")  # Keep as currency for backward compat
     risk_profile = Column(String(20), default="moderate")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -241,7 +241,7 @@ class Holding(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
-    ticker = Column(String(20), nullable=False)
+    symbol = Column(String(20), nullable=False)  # Keep as symbol for backward compat
     shares = Column(Float, nullable=False)
     avg_cost = Column(Float, nullable=False)  # In instrument native currency
     cost_currency = Column(String(3), default="USD")
@@ -258,7 +258,7 @@ class Transaction(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
-    ticker = Column(String(20), nullable=False)
+    symbol = Column(String(20), nullable=False)  # Keep as symbol for backward compat
     transaction_type = Column(String(10), nullable=False)  # buy, sell
     shares = Column(Float, nullable=False)
     price = Column(Float, nullable=False)  # In trade_currency

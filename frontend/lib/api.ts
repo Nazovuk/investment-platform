@@ -25,11 +25,13 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 // Screener API
 export const screenerApi = {
     getResults: (params?: {
+        min_pe?: number;
         max_pe?: number;
         max_peg?: number;
         min_revenue_growth?: number;
         min_upside?: number;
         min_score?: number;
+        sector?: string;
     }) => {
         const searchParams = new URLSearchParams();
         if (params) {

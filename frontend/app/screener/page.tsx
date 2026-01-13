@@ -19,13 +19,15 @@ export default function ScreenerPage() {
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filters - relaxed defaults to show more stocks
+    // Filters - expanded defaults to show more stocks
     const [filters, setFilters] = useState({
-        maxPE: 100,
+        minPE: 0,
+        maxPE: 500,
         maxPEG: 5.0,
         minScore: 0,
         minUpside: -50,
-        minRevenueGrowth: -100
+        minRevenueGrowth: -100,
+        sector: ''
     });
 
     // Fetch stocks from API
@@ -35,11 +37,13 @@ export default function ScreenerPage() {
             setError(null);
 
             const response = await screenerApi.getResults({
+                min_pe: filters.minPE > 0 ? filters.minPE : undefined,
                 max_pe: filters.maxPE,
                 max_peg: filters.maxPEG,
                 min_score: filters.minScore,
                 min_upside: filters.minUpside / 100,
-                min_revenue_growth: filters.minRevenueGrowth / 100
+                min_revenue_growth: filters.minRevenueGrowth / 100,
+                sector: filters.sector || undefined
             });
 
             setStocks(response.results || []);
@@ -198,11 +202,45 @@ export default function ScreenerPage() {
                     </div>
 
                     <div className="filter-group">
+                        <label className="filter-label">Sector</label>
+                        <select
+                            className="input"
+                            value={filters.sector}
+                            onChange={(e) => setFilters({ ...filters, sector: e.target.value })}
+                            style={{ padding: '8px 12px' }}
+                        >
+                            <option value="">All Sectors</option>
+                            <option value="Technology">Technology</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="Financial Services">Financial Services</option>
+                            <option value="Consumer Cyclical">Consumer Cyclical</option>
+                            <option value="Consumer Defensive">Consumer Defensive</option>
+                            <option value="Industrials">Industrials</option>
+                            <option value="Energy">Energy</option>
+                            <option value="Communication Services">Communication Services</option>
+                            <option value="Real Estate">Real Estate</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Materials">Materials</option>
+                        </select>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Min P/E Ratio: {filters.minPE}</label>
+                        <input
+                            type="range"
+                            className="range-slider"
+                            min="0" max="100"
+                            value={filters.minPE}
+                            onChange={(e) => setFilters({ ...filters, minPE: Number(e.target.value) })}
+                        />
+                    </div>
+
+                    <div className="filter-group">
                         <label className="filter-label">Max P/E Ratio: {filters.maxPE}</label>
                         <input
                             type="range"
                             className="range-slider"
-                            min="5" max="100"
+                            min="5" max="500" step="5"
                             value={filters.maxPE}
                             onChange={(e) => setFilters({ ...filters, maxPE: Number(e.target.value) })}
                         />
@@ -261,7 +299,7 @@ export default function ScreenerPage() {
                         <button
                             className="btn btn-ghost"
                             onClick={() => {
-                                setFilters({ maxPE: 50, maxPEG: 2.0, minScore: 50, minUpside: 0, minRevenueGrowth: 0 });
+                                setFilters({ minPE: 0, maxPE: 500, maxPEG: 5.0, minScore: 0, minUpside: -50, minRevenueGrowth: -100, sector: '' });
                             }}
                         >
                             Reset Filters
@@ -414,7 +452,7 @@ export default function ScreenerPage() {
                         <button
                             className="btn btn-primary mt-lg"
                             onClick={() => {
-                                setFilters({ maxPE: 50, maxPEG: 2.0, minScore: 50, minUpside: 0, minRevenueGrowth: 0 });
+                                setFilters({ minPE: 0, maxPE: 500, maxPEG: 5.0, minScore: 0, minUpside: -50, minRevenueGrowth: -100, sector: '' });
                                 fetchStocks();
                             }}
                         >

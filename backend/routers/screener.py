@@ -74,7 +74,8 @@ async def get_screener_results(
         min_revenue_growth=min_revenue_growth,
         min_upside=min_upside,
         min_score=min_score,
-        sectors=sectors
+        sectors=sectors,
+        market=market
     )
     
     results = await screen_stocks(filters)
@@ -88,7 +89,8 @@ async def get_screener_results(
             "min_revenue_growth": min_revenue_growth,
             "min_upside": min_upside,
             "min_score": min_score,
-            "sector": sector
+            "sector": sector,
+            "market": market
         },
         "results": results
     }

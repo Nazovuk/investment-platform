@@ -85,6 +85,9 @@ async def initialize_screener_data():
                     )
                     db.add(stock)
                     added_count += 1
+                elif existing and not existing.market:
+                    # Backfill market for existing stocks
+                    existing.market = "S&P 500"
         
         db.commit()
         logger.info(f"Seeded {added_count} stocks to DB.")
@@ -192,14 +195,21 @@ async def screen_stocks(filters: ScreenerFilters) -> List[Dict[str, Any]]:
         
         # 1. Apply static filters (Sector, Market)
         if filters.market:
-            # If market is S&P 500, we filter by market column (if populated) or just return all
-            # Since we seeded only SP500, existing data is SP500.
-            # But we might expand later.
+            # Filter by market - exact match
             if "S&P" in filters.market:
                 query = query.filter(ScreenerStock.market == "S&P 500")
             elif "NASDAQ" in filters.market:
-                # We haven't seeded NASDAQ yet, but logic is here
-                pass 
+                from data.indices import NASDAQ100_TICKERS
+                # NASDAQ includes stocks seeded as "NASDAQ 100" AND overlapping S&P 500 stocks
+                query = query.filter(
+                    or_(
+                        ScreenerStock.market == "NASDAQ 100",
+                        ScreenerStock.symbol.in_(NASDAQ100_TICKERS)
+                    )
+                )
+            elif "FTSE" in filters.market:
+                # FTSE not seeded yet - return empty
+                query = query.filter(ScreenerStock.market == "FTSE 100") 
                 
         if filters.sectors and filters.sectors[0]:
             # Use LIKE for partial matching (e.g., "Technology" matches "Information Technology")

@@ -87,15 +87,16 @@ export default function ScreenerPage() {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                        <div>
+                        <div style={{ gridColumn: 'span 2' }}>
                             <label style={labelStyle}>Market</label>
                             <select style={selectStyle} value={filters.market} onChange={e => setFilters({ ...filters, market: e.target.value })}>
                                 <option value="">All</option>
                                 <option value="S&P 500">S&P 500</option>
-                                <option value="NASDAQ 100">NASDAQ</option>
+                                <option value="FTSE 100">FTSE 100</option>
+                                <option value="NASDAQ 100">NASDAQ 100</option>
                             </select>
                         </div>
-                        <div>
+                        <div style={{ gridColumn: 'span 2' }}>
                             <label style={labelStyle}>Sector</label>
                             <select style={selectStyle} value={filters.sector} onChange={e => setFilters({ ...filters, sector: e.target.value })}>
                                 <option value="">All</option>
@@ -211,7 +212,7 @@ export default function ScreenerPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {sorted.slice(0, 100).map((s: any, i) => (
+                                {sorted.map((s: any, i) => (
                                     <tr key={s.symbol} onClick={() => {
                                         const w = 1200, h = 800;
                                         const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
